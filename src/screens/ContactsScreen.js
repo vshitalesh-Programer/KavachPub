@@ -1,11 +1,11 @@
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 
-const HomeScreen = () => {
+const ContactsScreen = () => {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Home</Text>
-      <Text style={styles.subtitle}>Welcome to MyoTrack</Text>
+      <Text style={styles.title}>Contacts</Text>
+      <Text style={styles.subtitle}>Your contacts list</Text>
     </View>
   );
 };
@@ -29,5 +29,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HomeScreen;
+export default ContactsScreen;
 

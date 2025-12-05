@@ -1,16 +1,19 @@
 import React from 'react';
 import {View, TouchableOpacity, Text, StyleSheet} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {normalize} from '../utils/AppFonts';
 
 const CustomTabBar = ({state, descriptors, navigation}) => {
+  const insets = useSafeAreaInsets();
   const tabs = [
-    {name: 'Home', label: 'Home', icon: '🏠'},
-    {name: 'Activity', label: 'Activity', icon: '📊'},
-    {name: 'Profile', label: 'Profile', icon: '👤'},
+    {name: 'Home', label: 'Home', icon: '🛡️'},
+    {name: 'Contacts', label: 'Contacts', icon: '👥'},
+    {name: 'Incidents', label: 'Incidents', icon: '📍'},
     {name: 'Settings', label: 'Settings', icon: '⚙️'},
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {paddingBottom: insets.bottom}]}>
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const {options} = descriptors[route.key];
@@ -38,23 +41,41 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
           const tab = tabs.find(t => t.name === route.name);
 
           return (
-            <TouchableOpacity
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? {selected: true} : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel}
-              testID={options.tabBarTestID}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              style={styles.tab}>
-              <Text style={[styles.icon, isFocused && styles.iconFocused]}>
-                {tab && tab.icon ? tab.icon : '•'}
-              </Text>
-              <Text style={[styles.label, isFocused && styles.labelFocused]}>
-                {tab && tab.label ? tab.label : route.name}
-              </Text>
-              {isFocused && <View style={styles.indicator} />}
-            </TouchableOpacity>
+            <View key={route.key} style={styles.tabWrapper}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={isFocused ? {selected: true} : {}}
+                accessibilityLabel={options.tabBarAccessibilityLabel}
+                testID={options.tabBarTestID}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                style={[
+                  styles.tab,
+                  isFocused && styles.tabActive,
+                ]}>
+                <Text
+                  style={[
+                    styles.icon,
+                    isFocused && styles.iconActive,
+                  ]}>
+                  {tab && tab.icon ? tab.icon : '•'}
+                </Text>
+                <Text
+                  style={[
+                    styles.label,
+                    isFocused && styles.labelActive,
+                  ]}>
+                  {tab && tab.label ? tab.label : route.name}
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Lightning bolt button on Home tab */}
+              {route.name === 'Home' && (
+                <TouchableOpacity style={styles.lightningButton}>
+                  <Text style={styles.lightningIcon}>⚡</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           );
         })}
       </View>
@@ -64,51 +85,73 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingBottom: 8,
-    paddingTop: 8,
+    borderTopColor: '#9CA3AF',
   },
   tabBar: {
     flexDirection: 'row',
-    height: 60,
+    height: normalize(70),
     alignItems: 'center',
     justifyContent: 'space-around',
+    paddingHorizontal: normalize(8),
+    paddingTop: normalize(8),
+    paddingBottom: normalize(8),
+  },
+  tabWrapper: {
+    flex: 1,
+    // alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
   tab: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: normalize(8),
+    paddingHorizontal: normalize(12),
+    borderRadius: normalize(12),
+    minWidth: normalize(60),
+  },
+  tabActive: {
+    backgroundColor: '#240E11',
+    borderWidth: 1,
+    borderColor: '#421013',
   },
   icon: {
-    fontSize: 24,
-    marginBottom: 4,
+    fontSize: normalize(16),
+    marginBottom: normalize(4),
   },
-  iconFocused: {
-    transform: [{scale: 1.1}],
+  iconActive: {
+    // Icon color handled by emoji, but we can add filter if needed
   },
   label: {
-    fontSize: 12,
-    color: '#999',
-    fontWeight: '500',
+    fontSize: normalize(10),
+    color: '#9CA3AF',
+    fontWeight: '400',
   },
-  labelFocused: {
-    color: '#007AFF',
-    fontWeight: '600',
+  labelActive: {
+    color: '#D6282f',
+    fontWeight: '400',
   },
-  indicator: {
+  lightningButton: {
     position: 'absolute',
-    top: 0,
+    bottom: normalize(45),
     left: '50%',
-    marginLeft: -15,
-    width: 30,
-    height: 3,
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
+    marginLeft: normalize(-20),
+    width: normalize(40),
+    height: normalize(40),
+    borderRadius: normalize(20),
+    backgroundColor: '#1F1F1F',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  lightningIcon: {
+    fontSize: normalize(20),
+    color: '#FFFFFF',
   },
 });
 
 export default CustomTabBar;
-

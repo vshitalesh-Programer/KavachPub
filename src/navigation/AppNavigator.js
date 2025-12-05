@@ -5,8 +5,8 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
-import ActivityScreen from '../screens/ActivityScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import ContactsScreen from '../screens/ContactsScreen';
+import IncidentsScreen from '../screens/IncidentsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CustomTabBar from '../components/CustomTabBar';
 
@@ -21,8 +21,8 @@ const MainTabs = () => {
         headerShown: false,
       }}>
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Activity" component={ActivityScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Contacts" component={ContactsScreen} />
+      <Tab.Screen name="Incidents" component={IncidentsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );

@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -17,12 +16,8 @@ const LoginScreen = ({navigation}) => {
   const [isLogin, setIsLogin] = useState(true);
 
   const handleLogin = () => {
-    if (email.trim() && password.trim()) {
-      // Navigate to main app (tabs) after successful login
-      navigation.replace('MainTabs');
-    } else {
-      Alert.alert('Error', 'Please enter email and password');
-    }
+    // Navigate directly to main app (tabs) without authentication
+    navigation.replace('MainTabs');
   };
 
   return (
