@@ -8,6 +8,7 @@ import {
   Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
 import {normalize} from '../utils/AppFonts';
 
 const LoginScreen = ({navigation}) => {
@@ -28,7 +29,23 @@ const LoginScreen = ({navigation}) => {
       <View style={styles.logoSection}>
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
-            <Text style={styles.shieldIcon}>🛡️</Text>
+            <Svg width={normalize(40)} height={normalize(40)} viewBox="0 0 128 128">
+              <Defs>
+                <SvgLinearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor="#ef4444" />
+                  <Stop offset="1" stopColor="#dc2626" />
+                </SvgLinearGradient>
+              </Defs>
+              <Path
+                fill="url(#g)"
+                d="M64 8c12 10 28 12 44 12v40c0 26-18 49-44 60C38 109 20 86 20 60V20c16 0 32-2 44-12z"
+              />
+              <Path
+                fill="white"
+                opacity="0.14"
+                d="M64 14c9 8 22 10 35 11v33c0 22-15 41-35 50-20-9-35-28-35-50V25c13-1 26-3 35-11z"
+              />
+            </Svg>
           </View>
         </View>
         <Text style={styles.appName}>Kavach</Text>
@@ -125,17 +142,14 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     marginBottom: 16,
+    backgroundColor:'#2b1216',
+    borderRadius: 16,
   },
   logoIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    backgroundColor: '#DC2626',
+    width: normalize(80),
+    height: normalize(80),
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  shieldIcon: {
-    fontSize: normalize(24),
   },
   appName: {
     fontSize: normalize(18),
