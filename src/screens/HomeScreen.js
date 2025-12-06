@@ -1,7 +1,71 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules } from 'react-native';
+import BluetoothService from '../services/BluetoothService';
+import BleManager from 'react-native-ble-manager';
+
+const BleManagerModule = NativeModules.BleManager;
+const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
 const HomeScreen = () => {
+  const [isScanning, setIsScanning] = useState(false);
+  const [peripherals, setPeripherals] = useState(new Map());
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  useEffect(() => {
+    BluetoothService.initialize();
+
+    const handleDiscoverPeripheral = (peripheral) => {
+      setPeripherals((map) => {
+        return new Map(map.set(peripheral.id, peripheral));
+      });
+    };
+
+    const handleStopScan = () => {
+      setIsScanning(false);
+      console.log('Scan stopped');
+    };
+
+    const listeners = [
+      bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', handleDiscoverPeripheral),
+      bleManagerEmitter.addListener('BleManagerStopScan', handleStopScan),
+    ];
+
+    return () => {
+      listeners.forEach(l => l.remove());
+    };
+  }, []);
+
+  const startScan = async () => {
+    const hasPermissions = await BluetoothService.requestPermissions();
+    if (hasPermissions) {
+      setPeripherals(new Map());
+      setIsScanning(true);
+      setIsModalVisible(true);
+      BluetoothService.scanForDevices(5);
+    } else {
+      console.warn('Bluetooth permissions denied');
+      alert('Bluetooth permissions are required to scan for devices.');
+    }
+  };
+
+  const connectToDevice = async (device) => {
+    try {
+      setIsScanning(false); // Stop scanning before connecting
+      await BluetoothService.connectToDevice(device.id);
+      alert(`Connected to ${device.name || device.id}`);
+      setIsModalVisible(false);
+    } catch (error) {
+      alert(`Connection failed: ${error.message || error}`);
+    }
+  };
+
+  const renderDeviceItem = ({ item }) => (
+    <TouchableOpacity style={styles.deviceItem} onPress={() => connectToDevice(item)}>
+      <Text style={styles.deviceName}>{item.name || 'Unknown Device'}</Text>
+      <Text style={styles.deviceId}>{item.id}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
 
@@ -23,6 +87,17 @@ const HomeScreen = () => {
           <Text style={styles.statValue}>2</Text>
         </View>
       </View>
+
+      {/* New Bluetooth Scan Section */}
+      <TouchableOpacity style={styles.scanCard} onPress={startScan}>
+        <View style={styles.scanContent}>
+          <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
+          <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
+        </View>
+        <View style={styles.scanIconBox}>
+          <Text style={styles.scanIcon}>📡</Text>
+        </View>
+      </TouchableOpacity>
 
       {/* Ready to Protect */}
       <View style={styles.card}>
@@ -58,6 +133,39 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {/* Scan Modal */}
+      <Modal
+        visible={isModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Available Devices</Text>
+              {isScanning && <ActivityIndicator color="#007AFF" />}
+            </View>
+            
+            <FlatList
+              data={Array.from(peripherals.values())}
+              renderItem={renderDeviceItem}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No devices found yet...</Text>
+              }
+            />
+
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              onPress={() => setIsModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );
@@ -102,6 +210,43 @@ const styles = StyleSheet.create({
 
   statLabel: { color: '#B0B5BA', fontSize: 14 },
   statValue: { color: 'white', fontSize: 26, fontWeight: '700', marginTop: 8 },
+
+  // Scan Card Styles
+  scanCard: {
+    backgroundColor: '#25262C',
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#3A3B40',
+  },
+  scanContent: {
+    flex: 1,
+  },
+  scanTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  scanSubtitle: {
+    color: '#9A9FA5',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  scanIconBox: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#3A3B40',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanIcon: {
+    fontSize: 20,
+  },
 
   card: {
     backgroundColor: '#16171D',
@@ -181,18 +326,66 @@ const styles = StyleSheet.create({
 
   viewLogText: { color: '#B0B5BA', fontSize: 14 },
 
-  bottomTabs: {
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#16171D',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    height: '60%',
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#121318',
-    paddingVertical: 14,
-    paddingHorizontal: 25,
-    borderRadius: 20,
+    alignItems: 'center',
+    marginBottom: 15,
   },
-
-  tabItem: { alignItems: 'center' },
-
-  tabLabel: { color: '#7C8087', fontSize: 13 },
+  modalTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  deviceItem: {
+    backgroundColor: '#25262C',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  deviceName: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deviceId: {
+    color: '#9A9FA5',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  emptyText: {
+    color: '#7C8087',
+    textAlign: 'center',
+    marginTop: 30,
+  },
+  closeButton: {
+    backgroundColor: '#3A3B40',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 16,
+  },
 });
 
 export default HomeScreen;
