@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Switch,
+  ScrollView,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { logout } from '../redux/slices/authSlice';
@@ -17,101 +18,29 @@ const SettingsScreen = () => {
 
   return (
     <View style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        {/* Header Icon */}
+        <View style={styles.headerIcon} />
 
-      {/* Header Icon */}
-      <View style={styles.headerIcon} />
+        {/* Main Settings Box */}
+        <View style={styles.settingsBox}>
+          <Text style={styles.title}>⚙️ Account details</Text>
 
-      {/* Main Settings Box */}
-      <View style={styles.settingsBox}>
-        <Text style={styles.title}>⚙️ Device Settings</Text>
-
-        {/* Alarm Mode */}
-        <Text style={styles.sectionLabel}>Alarm Mode</Text>
-
-        <View style={styles.row}>
-          <TouchableOpacity
-            style={[
-              styles.modeBtn,
-              alarmMode === 'Loud' && styles.modeActive,
-            ]}
-            onPress={() => setAlarmMode('Loud')}
-          >
-            <Text
-              style={[
-                styles.modeText,
-                alarmMode === 'Loud' && styles.modeTextActive,
-              ]}
-            >
-              Loud
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.modeBtn,
-              alarmMode === 'Silent' && styles.modeActive,
-            ]}
-            onPress={() => setAlarmMode('Silent')}
-          >
-            <Text
-              style={[
-                styles.modeText,
-                alarmMode === 'Silent' && styles.modeTextActive,
-              ]}
-            >
-              Silent
-            </Text>
-          </TouchableOpacity>
+          {/* Alarm Mode */}
+        
         </View>
-
-        <Text style={styles.helperText}>
-          Loud: audible siren • Silent: background alert to contacts.
-        </Text>
-
-        {/* Hold Duration */}
-        <Text style={[styles.sectionLabel, { marginTop: 16 }]}>
-          Hold Duration (seconds)
-        </Text>
-
-        <View style={styles.row}>
-          {renderHoldButton(1, holdTime, setHoldTime)}
-          {renderHoldButton(3, holdTime, setHoldTime)}
-          {renderHoldButton(5, holdTime, setHoldTime, 'Default')}
-          {renderHoldButton(10, holdTime, setHoldTime)}
-        </View>
-
-        <Text style={styles.helperText}>Required hold time for SOS.</Text>
-
-        {/* Auto-text */}
-        <View style={styles.autoTextBox}>
-          <Text style={styles.autoTitle}>Auto-text all contacts</Text>
-          <Text style={styles.autoDesc}>
-            When enabled, every contact’s Auto-text is set to Yes and per-contact
-            toggles are disabled. Turning this off sets all to No and re-enables
-            individual control.
-          </Text>
-
-          <View style={styles.toggleWrapper}>
-            <Text style={styles.toggleLabel}>{autoText ? 'On' : 'Off'}</Text>
-            <Switch
-              value={autoText}
-              onValueChange={setAutoText}
-              thumbColor={autoText ? '#ff4a4a' : '#444'}
-              trackColor={{ false: '#2f2f34', true: '#662222' }}
-            />
-          </View>
-        </View>
-      </View>
-
-
-
+      </ScrollView>
+      
+      {/* Logout Button - Fixed at bottom */}
       <TouchableOpacity
         style={styles.logoutBtn}
         onPress={() => dispatch(logout())}
       >
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
-
     </View>
   );
 };
@@ -262,13 +191,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  toggleLabel: {
-    color: '#B5B8BD',
-    fontSize: 15,
+  scrollView: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    paddingBottom: 100, // Extra padding to account for fixed logout button
   },
 
   logoutBtn: {
-    marginTop: 30,
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
     backgroundColor: '#1C1E25',
     paddingVertical: 16,
     borderRadius: 16,

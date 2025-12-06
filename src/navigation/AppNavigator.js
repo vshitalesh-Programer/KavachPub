@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import { useSelector } from 'react-redux';
 
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -28,22 +29,29 @@ const MainTabs = () => {
   );
 };
 
-import { useSelector } from 'react-redux';
-
 const AppNavigator = () => {
   const isAuthenticated = useSelector(state => state.auth.isAuthenticated);
+  const navigationRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!isAuthenticated && navigationRef.current) {
+      // Navigate to Login screen when user logs out
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }
+  }, [isAuthenticated]);
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-        }}>
-        {isAuthenticated ? (
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-        ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        )}
+        }}
+        initialRouteName={isAuthenticated ? "MainTabs" : "Login"}>
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );

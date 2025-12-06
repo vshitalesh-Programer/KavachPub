@@ -30,10 +30,10 @@ const LoginScreen = ({navigation}) => {
 
   useEffect(() => {
     // Configure Google Sign-In
-    // GoogleSignin.configure({
-    //   webClientId: '295362807661-3ih4t86k29mk82oenen7kro7e5f1oldk.apps.googleusercontent.com',
-    //   offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
-    // });
+    GoogleSignin.configure({
+      webClientId: '295362807661-3ih4t86k29mk82oenen7kro7e5f1oldk.apps.googleusercontent.com',
+      offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
+    });
   }, []);
 
   useEffect(() => {
@@ -42,18 +42,18 @@ const LoginScreen = ({navigation}) => {
     }
   }, [isAuthenticated, navigation]);
 
-  useEffect(() => {
-    if (error) {
-      Alert.alert('Error', error);
-    }
-  }, [error]);
+  // useEffect(() => {
+  //   if (error) {
+  //     Alert.alert('Error', error);
+  //   }
+  // }, [error]);
 
   const handleLogin = () => {
     if (isLogin) {
         // Normal Login (Use isDemo: true ONLY if you want to skip real API)
         // Set isDemo: false to try REAL API
-        navigation.replace('MainTabs');
-        // dispatch(loginRequest({ email, password, isDemo: false }));
+        // navigation.replace('MainTabs');
+         dispatch(loginRequest({ email, password, isDemo: false }));
     } else {
         // Signup
         // Note: We might need a Name field in the UI for real signup
