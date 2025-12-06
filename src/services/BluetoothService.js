@@ -41,13 +41,25 @@ class BluetoothService {
   }
 
   scanForDevices(duration = 5, onDiscovered) {
-    return BleManager.scan([], duration, true)
-      .then(() => {
-        console.log('Scan started');
-      })
-      .catch((err) => {
-        console.error('Scan failed', err);
-      });
+    // Bypass the JS wrapper because of signature mismatch
+    // Native expects: scan(ReadableMap options, Callback callback)
+    const scanOptions = {
+        serviceUUIDs: [],
+        seconds: duration,
+        allowDuplicates: true,
+        scanningOptions: {}
+    };
+    return new Promise((resolve, reject) => {
+        NativeModules.BleManager.scan(scanOptions, (error) => {
+            if (error) {
+                console.error('Scan failed', error);
+                reject(error);
+            } else {
+                console.log('Scan started');
+                resolve();
+            }
+        });
+    });
   }
 
   connectToDevice(deviceId) {
