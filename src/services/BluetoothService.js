@@ -1,5 +1,5 @@
 import BleManager from 'react-native-ble-manager';
-import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { NativeModules, PermissionsAndroid, Platform, Alert } from 'react-native';
 
 class BluetoothService {
   constructor() {
@@ -19,23 +19,40 @@ class BluetoothService {
 
   async requestPermissions() {
     if (Platform.OS === 'android') {
+      let granted = false;
       if (Platform.Version >= 31) {
         const result = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         ]);
-        return (
+        granted =
           result['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED &&
           result['android.permission.BLUETOOTH_SCAN'] === PermissionsAndroid.RESULTS.GRANTED &&
-          result['android.permission.ACCESS_FINE_LOCATION'] === PermissionsAndroid.RESULTS.GRANTED
-        );
+          result['android.permission.ACCESS_FINE_LOCATION'] === PermissionsAndroid.RESULTS.GRANTED;
       } else {
-        const granted = await PermissionsAndroid.request(
+        const permission = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
         );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
+        granted = permission === PermissionsAndroid.RESULTS.GRANTED;
       }
+
+      if (granted) {
+        try {
+          await BleManager.enableBluetooth();
+          console.log('Bluetooth is enabled');
+          return true;
+        } catch (error) {
+          console.warn('User refused to enable Bluetooth', error);
+          Alert.alert(
+            'Bluetooth Required', 
+            'You refused to enable Bluetooth. Please enable it in your system settings to search for devices.',
+            [{ text: 'OK' }]
+          );
+          return false;
+        }
+      }
+      return false;
     }
     return true; // iOS handles permissions automatically via Plist
   }
