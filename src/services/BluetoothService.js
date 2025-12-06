@@ -57,6 +57,19 @@ class BluetoothService {
     return true; // iOS handles permissions automatically via Plist
   }
 
+  async getBondedDevices() {
+    try {
+      const peripherals = await BleManager.getBondedPeripherals();
+      return peripherals.map(p => ({
+        ...p,
+        isBonded: true,
+      }));
+    } catch (error) {
+      console.error('Failed to get bonded devices', error);
+      return [];
+    }
+  }
+
   async scanForDevices(duration = 5) {
     try {
       console.log('🔵 [BLE Service] scanForDevices called, duration:', duration);
@@ -85,6 +98,7 @@ class BluetoothService {
         serviceUUIDs: [], // Empty array means scan all devices
         seconds: duration,
         allowDuplicates: true,
+        scanningOptions: { numberOfMatches: 1, matchMode: 1, scanMode: 2 } // Aggressive scan settings
       };
       
       console.log('🔵 [BLE Service] Scan options (Map format):', JSON.stringify(scanOptions));

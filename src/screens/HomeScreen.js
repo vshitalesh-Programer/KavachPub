@@ -81,6 +81,18 @@ const HomeScreen = () => {
         setLastEvent(null); // Reset last event
         setIsScanning(true);
         setIsModalVisible(true);
+
+        // Fetch bonded (paired) devices first (includes Classic devices)
+        BluetoothService.getBondedDevices().then(bondedDevices => {
+          console.log('🔵 [BLE] Found bonded devices:', bondedDevices.length);
+          setPeripherals((prevMap) => {
+            const newMap = new Map(prevMap);
+            bondedDevices.forEach(device => {
+               newMap.set(device.id, device);
+            });
+            return newMap;
+          });
+        });
         
         // Start the scan
         console.log('🟢 [BLE] Calling scanForDevices...');
@@ -262,8 +274,8 @@ const HomeScreen = () => {
                       : `No BLE devices found. (Found: ${peripherals instanceof Map ? peripherals.size : 0})`}
                   </Text>
                   <Text style={styles.emptySubtext}>
-                    Note: Only Bluetooth Low Energy (BLE) devices will appear.{'\n'}
-                    Classic Bluetooth devices (like some older headphones) won't be detected.
+                    Note: Scanning for ALL nearby Bluetooth devices.{'\n'}
+                    If your device is not showing up, ensure it is in pairing mode.
                   </Text>
                   {eventCount === 0 && isScanning && (
                     <Text style={styles.emptySubtext}>
