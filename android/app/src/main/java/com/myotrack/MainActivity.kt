@@ -22,8 +22,8 @@ class MainActivity : ReactActivity() {
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
 
   override fun onCreate(savedInstanceState: Bundle?) {
-    // Set the splash theme before super.onCreate
-    setTheme(R.style.AppTheme)
+    // SplashTheme is set in manifest - it will show splash screen immediately
+    // Don't switch themes here - let React Native handle the transition
     super.onCreate(savedInstanceState)
   }
 }
