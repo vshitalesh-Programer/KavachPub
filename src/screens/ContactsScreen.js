@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, SectionList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SectionList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import ApiService from '../services/ApiService';
 
 const MOCK_CONTACTS = [
   {
@@ -24,6 +25,58 @@ const MOCK_CONTACTS = [
 ];
 
 const ContactsScreen = () => {
+  const [contacts, setContacts] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    loadContacts();
+  }, []);
+
+  const loadContacts = async () => {
+    try {
+      setLoading(true);
+      const data = await ApiService.getContacts();
+      const apiContacts = Array.isArray(data?.contacts)
+        ? data.contacts
+        : Array.isArray(data)
+          ? data
+          : [];
+      const formattedContacts = formatContacts(apiContacts);
+      setContacts(formattedContacts);
+    } catch (error) {
+      console.error('Failed to load contacts', error?.message || error);
+      setContacts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatContacts = (apiContacts) => {
+    // Group by relation like MOCK_CONTACTS
+    const groups = {
+      Emergency: [],
+      Family: [],
+      Friend: []
+    };
+
+    apiContacts.forEach(contact => {
+      if (groups[contact.relation]) {
+        groups[contact.relation].push({
+           id: contact.id,
+           name: contact.name,
+           detail: `${contact.relation} • ${contact.phone}`,
+           autoCall: contact.autoCall,
+           autoText: contact.autoText
+        });
+      }
+    });
+
+    return Object.keys(groups).map(key => ({
+      title: key,
+      data: groups[key]
+    })).filter(section => section.data.length > 0);
+  };
+
   const renderSectionHeader = ({ section: { title } }) => (
     <View style={styles.sectionHeaderContainer}>
       <Text style={styles.sectionHeader}>{title}</Text>
@@ -79,15 +132,27 @@ const ContactsScreen = () => {
         </Text>
       </View>
 
-      <SectionList
-        sections={MOCK_CONTACTS}
-        keyExtractor={(item, index) => item.id + index}
-        renderItem={renderItem}
-        renderSectionHeader={renderSectionHeader}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        stickySectionHeadersEnabled={false} 
-      />
+      {loading ? (
+        <React.Fragment>
+             <ActivityIndicator size="large" color="#E5484D" style={{marginTop: 50}} />
+             <Text style={{color: '#9CA3AF', textAlign: 'center', marginTop: 10}}>Loading Contacts...</Text>
+        </React.Fragment>
+      ) : (
+        <SectionList
+          sections={contacts}
+          keyExtractor={(item, index) => item.id + index}
+          renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false} 
+          ListEmptyComponent={
+            <Text style={{color: '#9CA3AF', textAlign: 'center', marginTop: 50}}>
+              No contacts found. Add one!
+            </Text>
+          }
+        />
+      )}
     </View>
   );
 };
@@ -220,4 +285,3 @@ const styles = StyleSheet.create({
 });
 
 export default ContactsScreen;
-

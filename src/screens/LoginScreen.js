@@ -11,14 +11,33 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
 import {normalize} from '../utils/AppFonts';
 
+import { loginRequest, signupRequest } from '../redux/slices/authSlice';
+import { useDispatch, useSelector } from 'react-redux';
+
 const LoginScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
 
+  const dispatch = useDispatch();
+  const { loading, error, isAuthenticated } = useSelector(state => state.auth);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigation.replace('MainTabs');
+    }
+  }, [isAuthenticated, navigation]);
+
   const handleLogin = () => {
-    // Navigate directly to main app (tabs) without authentication
-    navigation.replace('MainTabs');
+    if (isLogin) {
+        // Normal Login (Use isDemo: true ONLY if you want to skip real API)
+        // Set isDemo: false to try REAL API
+        dispatch(loginRequest({ email, password, isDemo: false }));
+    } else {
+        // Signup
+        // Note: We might need a Name field in the UI for real signup
+        dispatch(signupRequest({ email, password, name: 'New User' }));
+    }
   };
 
   return (
@@ -111,7 +130,7 @@ const LoginScreen = ({navigation}) => {
 
           {/* Login Button */}
           <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>Log In</Text>
+            <Text style={styles.loginButtonText}>{isLogin ? 'Log In' : 'Sign Up'}</Text>
           </TouchableOpacity>
 
        

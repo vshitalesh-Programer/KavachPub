@@ -1,25 +1,50 @@
-import { takeLatest, put, delay } from 'redux-saga/effects';
-import { loginRequest, loginSuccess, loginFailure } from '../slices/authSlice';
+import { call, put, takeLatest, delay } from 'redux-saga/effects';
+import {
+  loginRequest, loginSuccess, loginFailure,
+  signupRequest, signupSuccess, signupFailure
+} from '../slices/authSlice';
+import ApiService from '../../services/ApiService';
 
 // Worker Saga: will be fired on loginRequest actions
 function* handleLogin(action) {
   try {
-    // Simulate API call
-    yield delay(1000); 
-    
-    // In a real app, you would verify credentials here
-    if (action.payload.username === 'user' && action.payload.password === 'password') {
-       yield put(loginSuccess({ id: 1, name: 'Test User' }));
+    const { email, password, googleToken, isDemo } = action.payload;
+
+    let userData;
+    if (googleToken) {
+       userData = yield call([ApiService, ApiService.googleLogin], googleToken);
+    } else if (isDemo) {
+       yield delay(1000); // Simulate delay
+       userData = {
+           id: 'demo-user',
+           name: 'Demo User',
+           token: 'demo-token',
+           email: email || 'demo@example.com'
+       };
     } else {
-       // yield put(loginFailure('Invalid credentials')); // Commented out for now to simulate success or handle manually
-       yield put(loginSuccess({ id: 1, name: 'Demo User' })); // Default success for demo
+       // Real Email Login
+       userData = yield call([ApiService, ApiService.emailLogin], email, password);
     }
+
+    // Assuming userData contains user info and token
+    yield put(loginSuccess(userData));
   } catch (error) {
-    yield put(loginFailure(error.message));
+    yield put(loginFailure(error.message || 'Login failed'));
+  }
+}
+
+function* handleSignup(action) {
+  try {
+    const { email, password, name } = action.payload;
+    const userData = yield call([ApiService, ApiService.emailSignup], email, password, name);
+    yield put(signupSuccess(userData));
+  } catch (error) {
+    yield put(signupFailure(error.message || 'Signup failed'));
   }
 }
 
 // Watcher Saga: spawn a new handleLogin task on each loginRequest
 export default function* authSaga() {
   yield takeLatest(loginRequest.type, handleLogin);
+  yield takeLatest(signupRequest.type, handleSignup);
 }

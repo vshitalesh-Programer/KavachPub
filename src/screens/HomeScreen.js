@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules } from 'react-native';
 import BluetoothService from '../services/BluetoothService';
+import ApiService from '../services/ApiService';
 import BleManager from 'react-native-ble-manager';
 
 const BleManagerModule = NativeModules.BleManager;
@@ -66,6 +67,24 @@ const HomeScreen = () => {
     </TouchableOpacity>
   );
 
+  const handleSOS = async () => {
+    try {
+        console.log('Triggering SOS...');
+        // In a real app, get GPS location here
+        const locationData = {
+            latitude: 0, 
+            longitude: 0,
+            deviceId: 'test-device-id', // Use proper device ID lib
+            deviceInfo: 'Android Emulator'
+        };
+        const response = await ApiService.triggerEmergency(locationData);
+        const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
+        alert(message);
+    } catch (error) {
+        alert(`Failed to send alert: ${error.message || error}`);
+    }
+  };
+
   return (
     <View style={styles.container}>
 
@@ -79,12 +98,12 @@ const HomeScreen = () => {
       <View style={styles.statsRow}>
         <View style={styles.statBox}>
           <Text style={styles.statLabel}>Contacts</Text>
-          <Text style={styles.statValue}>4</Text>
+          <Text style={styles.statValue}>-</Text>
         </View>
 
         <View style={styles.statBox}>
           <Text style={styles.statLabel}>Incidents</Text>
-          <Text style={styles.statValue}>2</Text>
+          <Text style={styles.statValue}>-</Text>
         </View>
       </View>
 
@@ -115,7 +134,7 @@ const HomeScreen = () => {
 
         {/* SOS Button */}
         <View style={styles.sosContainer}>
-          <TouchableOpacity style={styles.sosButton}>
+          <TouchableOpacity style={styles.sosButton} onLongPress={handleSOS} delayLongPress={1000}>
             <Text style={styles.sosIcon}>🚨</Text>
             <Text style={styles.sosText}>SOS</Text>
             <Text style={styles.sosSubText}>Press & hold</Text>
