@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert } from 'react-native';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
 import BleManager from 'react-native-ble-manager';
@@ -11,25 +11,59 @@ const HomeScreen = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [peripherals, setPeripherals] = useState(new Map());
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [eventCount, setEventCount] = useState(0); // Track if events are received
+  const [lastEvent, setLastEvent] = useState(null); // Store last event for debugging
 
   useEffect(() => {
     BluetoothService.initialize();
 
     const handleDiscoverPeripheral = (peripheral) => {
+      console.log('🔵 [BLE] Discovered peripheral:', JSON.stringify(peripheral, null, 2));
+      if (!peripheral || !peripheral.id) {
+        console.warn('⚠️ [BLE] Invalid peripheral data:', peripheral);
+        return;
+      }
       setPeripherals((map) => {
-        return new Map(map.set(peripheral.id, peripheral));
+        // Ensure map is a Map instance
+        const currentMap = map instanceof Map ? map : new Map();
+        const newMap = new Map(currentMap);
+        newMap.set(peripheral.id, peripheral);
+        console.log('✅ [BLE] Updated peripherals count:', newMap.size, 'Device:', peripheral.name || peripheral.id);
+        return newMap;
       });
     };
 
     const handleStopScan = () => {
       setIsScanning(false);
       console.log('Scan stopped');
+      console.log('Total devices found:', peripherals.size);
     };
 
-    const listeners = [
-      bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', handleDiscoverPeripheral),
-      bleManagerEmitter.addListener('BleManagerStopScan', handleStopScan),
-    ];
+    console.log('🔵 [BLE] Setting up BLE event listeners...');
+    console.log('🔵 [BLE] BleManagerModule:', BleManagerModule ? 'Found' : 'NOT FOUND');
+    console.log('🔵 [BLE] bleManagerEmitter:', bleManagerEmitter ? 'Created' : 'NOT CREATED');
+    
+    const discoverListener = bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', (data) => {
+      console.log('🔵 [BLE] ===== BleManagerDiscoverPeripheral EVENT RECEIVED =====');
+      console.log('🔵 [BLE] Event data:', JSON.stringify(data, null, 2));
+      console.log('🔵 [BLE] Event data type:', typeof data);
+      console.log('🔵 [BLE] Event data keys:', data ? Object.keys(data) : 'null');
+      
+      // Track events
+      setEventCount(prev => prev + 1);
+      setLastEvent(data);
+      
+      handleDiscoverPeripheral(data);
+    });
+    
+    const stopScanListener = bleManagerEmitter.addListener('BleManagerStopScan', () => {
+      console.log('🟡 [BLE] ===== BleManagerStopScan EVENT RECEIVED =====');
+      handleStopScan();
+    });
+
+    const listeners = [discoverListener, stopScanListener];
+    console.log('✅ [BLE] Event listeners registered:', listeners.length);
+    console.log('✅ [BLE] Listening for: BleManagerDiscoverPeripheral, BleManagerStopScan');
 
     return () => {
       listeners.forEach(l => l.remove());
@@ -37,15 +71,49 @@ const HomeScreen = () => {
   }, []);
 
   const startScan = async () => {
-    const hasPermissions = await BluetoothService.requestPermissions();
-    if (hasPermissions) {
-      setPeripherals(new Map());
-      setIsScanning(true);
-      setIsModalVisible(true);
-      BluetoothService.scanForDevices(5);
-    } else {
-      console.warn('Bluetooth permissions denied');
-      alert('Bluetooth permissions are required to scan for devices.');
+    try {
+      console.log('🟢 [BLE] Starting scan...');
+      const hasPermissions = await BluetoothService.requestPermissions();
+      console.log('🟢 [BLE] Permissions granted:', hasPermissions);
+      if (hasPermissions) {
+        setPeripherals(new Map());
+        setEventCount(0); // Reset event counter
+        setLastEvent(null); // Reset last event
+        setIsScanning(true);
+        setIsModalVisible(true);
+        
+        // Start the scan
+        console.log('🟢 [BLE] Calling scanForDevices...');
+        await BluetoothService.scanForDevices(10); // 10 seconds
+        console.log('🟢 [BLE] Scan initiated, waiting for devices...');
+        console.log('🟢 [BLE] Event listeners should be active. Waiting for BleManagerDiscoverPeripheral events...');
+        
+        // Auto-stop scanning after duration
+        setTimeout(async () => {
+          console.log('🟡 [BLE] Auto-stopping scan after timeout');
+          try {
+            await BleManager.stopScan();
+            console.log('🟡 [BLE] Scan stopped manually');
+          } catch (e) {
+            console.log('🟡 [BLE] Error stopping scan:', e);
+          }
+          setIsScanning(false);
+          
+          // Log final count
+          setPeripherals((map) => {
+            const currentMap = map instanceof Map ? map : new Map();
+            console.log('🟡 [BLE] Final device count:', currentMap.size);
+            return currentMap;
+          });
+        }, 10000);
+      } else {
+        console.warn('🔴 [BLE] Bluetooth permissions denied');
+        Alert.alert('Permission Required', 'Bluetooth permissions are required to scan for devices.');
+      }
+    } catch (error) {
+      console.error('🔴 [BLE] Scan error:', error);
+      setIsScanning(false);
+      Alert.alert('Scan Failed', `Scan failed: ${error.message || error}`);
     }
   };
 
@@ -166,19 +234,52 @@ const HomeScreen = () => {
               {isScanning && <ActivityIndicator color="#007AFF" />}
             </View>
             
+            {/* Debug Info */}
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugText}>
+                Scanning: {isScanning ? 'Yes' : 'No'} | 
+                Devices: {peripherals instanceof Map ? peripherals.size : 0} | 
+                Events: {eventCount}
+              </Text>
+              {lastEvent && (
+                <Text style={styles.debugText} numberOfLines={2}>
+                  Last: {lastEvent.name || lastEvent.id || 'Unknown'}
+                </Text>
+              )}
+            </View>
+
             <FlatList
-              data={Array.from(peripherals.values())}
+              data={peripherals instanceof Map ? Array.from(peripherals.values()) : []}
               renderItem={renderDeviceItem}
-              keyExtractor={item => item.id}
+              keyExtractor={(item, index) => item?.id || `device-${index}`}
               contentContainerStyle={styles.listContent}
+              extraData={peripherals instanceof Map ? peripherals.size : 0}
               ListEmptyComponent={
-                <Text style={styles.emptyText}>No devices found yet...</Text>
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    {isScanning 
+                      ? 'Scanning for BLE devices...' 
+                      : `No BLE devices found. (Found: ${peripherals instanceof Map ? peripherals.size : 0})`}
+                  </Text>
+                  <Text style={styles.emptySubtext}>
+                    Note: Only Bluetooth Low Energy (BLE) devices will appear.{'\n'}
+                    Classic Bluetooth devices (like some older headphones) won't be detected.
+                  </Text>
+                  {eventCount === 0 && isScanning && (
+                    <Text style={styles.emptySubtext}>
+                      ⚠️ No discovery events received yet. Check console logs.
+                    </Text>
+                  )}
+                </View>
               }
             />
 
             <TouchableOpacity 
               style={styles.closeButton} 
-              onPress={() => setIsModalVisible(false)}
+              onPress={() => {
+                console.log('Closing modal');
+                setIsModalVisible(false);
+              }}
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
@@ -388,10 +489,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  emptyContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
   emptyText: {
     color: '#7C8087',
     textAlign: 'center',
     marginTop: 30,
+    fontSize: 16,
+  },
+  emptySubtext: {
+    color: '#5A5D63',
+    textAlign: 'center',
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 18,
   },
   closeButton: {
     backgroundColor: '#3A3B40',
@@ -404,6 +517,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '700',
     fontSize: 16,
+  },
+  debugContainer: {
+    backgroundColor: '#25262C',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  debugText: {
+    color: '#9A9FA5',
+    fontSize: 12,
+    fontFamily: 'monospace',
   },
 });
 

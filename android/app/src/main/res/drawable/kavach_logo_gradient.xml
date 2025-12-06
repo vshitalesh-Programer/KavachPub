@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Gradient background -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#EF4444"
+                android:endColor="#DC2626"
+                android:angle="135" />
+        </shape>
+    </item>
+    <!-- Shield shape mask -->
+    <item>
+        <vector
+            android:width="128dp"
+            android:height="128dp"
+            android:viewportWidth="128"
+            android:viewportHeight="128">
+            <path
+                android:fillColor="#FFFFFF"
+                android:pathData="M64 8c12 10 28 12 44 12v40c0 26-18 49-44 60C38 109 20 86 20 60V20c16 0 32-2 44-12z"/>
+        </vector>
+    </item>
+</layer-list>
+

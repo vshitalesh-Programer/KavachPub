@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    
+    <!-- Main shield with gradient (matching LoginScreen pattern) -->
+    <path android:pathData="M64 8c12 10 28 12 44 12v40c0 26-18 49-44 60C38 109 20 86 20 60V20c16 0 32-2 44-12z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="128"
+                android:endY="128"
+                android:type="linear">
+                <item
+                    android:offset="0"
+                    android:color="#EF4444"/>
+                <item
+                    android:offset="1"
+                    android:color="#DC2626"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    
+    <!-- Highlight overlay -->
+    <path android:fillColor="#FFFFFF"
+        android:fillAlpha="0.14"
+        android:pathData="M64 14c9 8 22 10 35 11v33c0 22-15 41-35 50-20-9-35-28-35-50V25c13-1 26-3 35-11z"/>
+</vector>
+
