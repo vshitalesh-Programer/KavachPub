@@ -30,10 +30,20 @@ const LoginScreen = ({navigation}) => {
 
   useEffect(() => {
     // Configure Google Sign-In
-    GoogleSignin.configure({
-      webClientId: '295362807661-3ih4t86k29mk82oenen7kro7e5f1oldk.apps.googleusercontent.com',
-      offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
-    });
+    console.log('LoginScreen: GoogleSignin object:', GoogleSignin);
+    if (!GoogleSignin) {
+      console.error('LoginScreen: GoogleSignin is undefined! Check imports.');
+      return;
+    }
+    try {
+        GoogleSignin.configure({
+        webClientId: '295362807661-3ih4t86k29mk82oenen7kro7e5f1oldk.apps.googleusercontent.com',
+        offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
+        });
+        console.log('LoginScreen: GoogleSignin configured successfully');
+    } catch (e) {
+        console.error('LoginScreen: GoogleSignin configuration failed', e);
+    }
   }, []);
 
   useEffect(() => {
@@ -87,19 +97,29 @@ const LoginScreen = ({navigation}) => {
       setIsLoading(false);
       
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // User cancelled the login flow
-        Alert.alert('Cancelled', 'Sign in was cancelled');
+        console.log('LoginScreen: User cancelled the login flow');
+        Alert.alert('Cancelled', 'Sign-in was cancelled');
       } else if (error.code === statusCodes.IN_PROGRESS) {
-        // Operation (e.g. sign in) is in progress already
-        Alert.alert('In Progress', 'Sign in is already in progress');
+        console.log('LoginScreen: Sign in is in progress already');
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        // Play services not available or outdated
-        Alert.alert('Error', 'Play services not available or outdated');
+        console.log('LoginScreen: Play services not available or outdated');
+        Alert.alert('Error', 'Google Play Services are required for sign in.');
       } else {
-        // Some other error happened
-        console.error('Google Sign-In Error:', error);
-        Alert.alert('Error', error.message || 'Something went wrong with Google Sign-In');
+        console.error('LoginScreen: Google Sign-In Error', error);
+        
+        // Detailed error message handling
+        let errorMessage = 'An error occurred during Google Sign-In.';
+        if (error.message) errorMessage += `\n${error.message}`;
+        if (error.code) errorMessage += `\n(Code: ${error.code})`;
+        
+        if (error.code === 'DEVELOPER_ERROR') {
+            errorMessage += '\n\nConfiguration Error: Check your SHA-1 fingerprint in Firebase and ensure google-services.json is valid (not the dummy one).';
+        }
+        
+        Alert.alert('Google Sign-In Failed', errorMessage);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 

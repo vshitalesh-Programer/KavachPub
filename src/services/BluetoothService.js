@@ -1,4 +1,5 @@
 import BleManager from 'react-native-ble-manager';
+import RNBluetoothClassic from 'react-native-bluetooth-classic';
 import { NativeModules, PermissionsAndroid, Platform, Alert } from 'react-native';
 
 class BluetoothService {
@@ -17,6 +18,21 @@ class BluetoothService {
     }
   }
 
+  async scanClassic() {
+    try {
+      console.log('🔵 [Classic] Starting scan...');
+      // cancelDiscovery() first to be safe?
+      try { await RNBluetoothClassic.cancelDiscovery(); } catch(e) {}
+      
+      const devices = await RNBluetoothClassic.startDiscovery();
+      console.log('✅ [Classic] Scan finished. Found:', devices.length);
+      return devices;
+    } catch (error) {
+      console.error('🔴 [Classic] Scan failed:', error);
+      return [];
+    }
+  }
+
   async requestPermissions() {
     if (Platform.OS === 'android') {
       let granted = false;
@@ -25,6 +41,7 @@ class BluetoothService {
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
         ]);
         granted =
           result['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED &&
@@ -74,49 +91,25 @@ class BluetoothService {
     try {
       console.log('🔵 [BLE Service] scanForDevices called, duration:', duration);
       
-      // Check Bluetooth state
       const state = await BleManager.checkState();
-      console.log('🔵 [BLE Service] Bluetooth state:', state);
-      
       if (state !== 'on') {
         throw new Error(`Bluetooth is ${state}. Please enable Bluetooth.`);
       }
-      
+
       // Stop any existing scan first
       try {
         await BleManager.stopScan();
-        console.log('🔵 [BLE Service] Stopped any existing scan');
       } catch (e) {
-        // Ignore if no scan was running
-        console.log('🔵 [BLE Service] No existing scan to stop');
+        // ignore
       }
-      
-      // Use NativeModules with proper Map/object format (not array)
-      // The native module expects a ReadableMap (object), not an array
-      console.log('🔵 [BLE Service] Starting scan with NativeModules...');
-      const scanOptions = {
-        serviceUUIDs: [], // Empty array means scan all devices
-        seconds: duration,
-        allowDuplicates: true,
-        scanningOptions: { numberOfMatches: 1, matchMode: 1, scanMode: 2 } // Aggressive scan settings
-      };
-      
-      console.log('🔵 [BLE Service] Scan options (Map format):', JSON.stringify(scanOptions));
-      
-      return new Promise((resolve, reject) => {
-        NativeModules.BleManager.scan(scanOptions, (error) => {
-          if (error) {
-            console.error('🔴 [BLE Service] Scan callback error:', error);
-            reject(new Error(error));
-          } else {
-            console.log('✅ [BLE Service] Scan started successfully');
-            resolve();
-          }
-        });
-      });
+
+      console.log('🔵 [BLE Service] Starting scan via BleManager.scan()...');
+      // scan(serviceUUIDs, seconds, allowDuplicates, options)
+      await BleManager.scan(null, duration, true, { numberOfMatches: 1, matchMode: 1, scanMode: 2 });
+      console.log('✅ [BLE Service] Scan started successfully');
+
     } catch (error) {
       console.error('🔴 [BLE Service] Scan error:', error);
-      console.error('🔴 [BLE Service] Error message:', error.message);
       throw error;
     }
   }
@@ -131,6 +124,18 @@ class BluetoothService {
         console.error('Connection failed', err);
         throw err;
       });
+  }
+
+  async connectToClassicDevice(deviceId) {
+    try {
+        console.log('Connecting to Classic Device:', deviceId);
+        const device = await RNBluetoothClassic.connectToDevice(deviceId);
+        console.log('Connected to Classic Device:', deviceId);
+        return device;
+    } catch (error) {
+        console.error('Classic Connection failed', error);
+        throw error;
+    }
   }
 }
 

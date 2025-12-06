@@ -88,10 +88,38 @@ const HomeScreen = () => {
           setPeripherals((prevMap) => {
             const newMap = new Map(prevMap);
             bondedDevices.forEach(device => {
-               newMap.set(device.id, device);
+               newMap.set(device.id, device); // BleManager uses 'id'
             });
             return newMap;
           });
+        });
+
+        // Trigger Classic Discovery (unpaired) in background
+        console.log('🟢 [Classic] Calling scanClassic...');
+        BluetoothService.scanClassic().then(classicDevices => {
+             console.log('🔵 [Classic] detailed results:', classicDevices.length);
+             if (classicDevices.length > 0) {
+                 setPeripherals((prevMap) => {
+                    const newMap = new Map(prevMap);
+                    classicDevices.forEach(device => {
+                       // classic device often has 'address' instead of 'id', but verify lib output
+                       const id = device.address || device.id; 
+                       if (id) {
+                           // Prefer existing entry if it has more info (like from bonded list)
+                           // But update it if we found it again.
+                           // Actually, let's just add it.
+                           newMap.set(id, { 
+                               id: id, 
+                               name: device.name || 'Unknown Classic Device',
+                               address: device.address, // Keep address for Classic distinction
+                               class: device.class,
+                               rssi: device.rssi // Might be undefined
+                           });
+                       }
+                    });
+                    return newMap;
+                 });
+             }
         });
         
         // Start the scan
@@ -132,10 +160,32 @@ const HomeScreen = () => {
   const connectToDevice = async (device) => {
     try {
       setIsScanning(false); // Stop scanning before connecting
-      await BluetoothService.connectToDevice(device.id);
+      
+      // Check if it's a Classic device (we marked it with 'address' or 'deviceClass' usually, or just check ID format/missing RSSI?)
+      // For now, if we have a way to distinguish, great. 
+      // RNBluetoothClassic devices usually have `address` and `deviceClass`. BleManager devices use `id` (UUID on iOS, Mac on Android).
+      // Let's assume if it came from our scanClassic merge, it might be distinguishable.
+      // But actually, `connectToClassicDevice` handles the classic connection. 
+      // We can try Classic connection if it looks like a classic device, or try BLE if it fails?
+      
+      // Simple heuristic: If it was found via Classic scan, we probably stored extra props? 
+      // Or we can just try one then the other? Not ideal.
+      // Let's rely on how we stored it. 
+      
+      if (device.address && !device.advertising) { 
+          // Likely a classic device from RNBluetoothClassic (which returns address, name, deviceClass)
+           await BluetoothService.connectToClassicDevice(device.id); // device.id is address in our map
+      } else {
+           // Default to BLE
+           await BluetoothService.connectToDevice(device.id);
+      }
+
       alert(`Connected to ${device.name || device.id}`);
       setIsModalVisible(false);
     } catch (error) {
+      console.log('Connection failed, trying alternative...', error);
+      // Fallback: If one failed, maybe try the other? 
+      // For now just alert error
       alert(`Connection failed: ${error.message || error}`);
     }
   };
