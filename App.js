@@ -7,14 +7,23 @@ import { PersistGate } from 'redux-persist/integration/react';
 import AppNavigator from './src/navigation/AppNavigator';
 import store, { persistor } from './src/redux/store';
 
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { logout } from './src/redux/slices/authSlice';
 import ApiService from './src/services/ApiService';
 
-// Component to sync Redux auth state with ApiService
 const AuthSync = ({ children }) => {
   const user = useSelector(state => state.auth.user);
+  const dispatch = useDispatch();
   
   React.useEffect(() => {
+    // Set up the cleanup callback for 401s
+    ApiService.setLogoutCallback(() => {
+      dispatch(logout());
+    });
+  }, [dispatch]);
+  
+  React.useEffect(() => {
+    console.log('[App] AuthSync user changed:', user ? 'Logged In' : 'Null');
     if (user && user.token) {
       ApiService.setToken(user.token);
     } else {

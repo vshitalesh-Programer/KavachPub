@@ -1,31 +1,45 @@
-import { MMKV } from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let storage;
+let isMMKV = false;
+
 try {
   storage = new MMKV();
+  isMMKV = true;
+  console.log('[ReduxStorage] MMKV initialized successfully');
 } catch (error) {
-  console.warn("MMKV failed to initialize (likely due to Remote Debugging). Falling back to in-memory storage.", error);
-  // Fallback mock storage to prevent crash
-  storage = {
-    set: () => {},
-    getString: () => null,
-    delete: () => {},
-    clearAll: () => {},
-  };
+  console.warn("MMKV failed to initialize (likely due to Remote Debugging). Falling back to AsyncStorage.", error);
+  storage = AsyncStorage;
+  isMMKV = false;
 }
 
 const reduxStorage = {
   setItem: (key, value) => {
-    storage.set(key, value);
-    return Promise.resolve(true);
+    // console.log('[ReduxStorage] setItem', key);
+    if (isMMKV) {
+      storage.set(key, value);
+      return Promise.resolve(true);
+    } else {
+      return storage.setItem(key, value);
+    }
   },
   getItem: (key) => {
-    const value = storage.getString(key);
-    return Promise.resolve(value);
+    // console.log('[ReduxStorage] getItem', key);
+    if (isMMKV) {
+      const value = storage.getString(key);
+      return Promise.resolve(value);
+    } else {
+      return storage.getItem(key);
+    }
   },
   removeItem: (key) => {
-    storage.delete(key);
-    return Promise.resolve();
+    console.log('[ReduxStorage] removeItem', key);
+    if (isMMKV) {
+      storage.delete(key);
+      return Promise.resolve();
+    } else {
+      return storage.removeItem(key);
+    }
   },
 };
 

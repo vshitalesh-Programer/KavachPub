@@ -6,8 +6,11 @@ import {
   TouchableOpacity,
   Switch,
 } from 'react-native';
+import { useDispatch } from 'react-redux';
+import { logout } from '../redux/slices/authSlice';
 
 const SettingsScreen = () => {
+  const dispatch = useDispatch();
   const [alarmMode, setAlarmMode] = useState('Loud');
   const [holdTime, setHoldTime] = useState(5);
   const [autoText, setAutoText] = useState(false);
@@ -99,6 +102,15 @@ const SettingsScreen = () => {
           </View>
         </View>
       </View>
+
+
+
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={() => dispatch(logout())}
+      >
+        <Text style={styles.logoutText}>Log Out</Text>
+      </TouchableOpacity>
 
     </View>
   );
@@ -250,22 +262,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  /* Bottom Tabs */
-  bottomTabs: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 25,
-    backgroundColor: '#121318',
-    borderRadius: 20,
-    marginTop: 25,
+  toggleLabel: {
+    color: '#B5B8BD',
+    fontSize: 15,
   },
 
-  tabItem: { alignItems: 'center' },
+  logoutBtn: {
+    marginTop: 30,
+    backgroundColor: '#1C1E25',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2A2D35',
+  },
 
-  tabLabel: {
-    color: '#7C8087',
-    fontSize: 13,
+  logoutText: {
+    color: '#FF4A4A',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

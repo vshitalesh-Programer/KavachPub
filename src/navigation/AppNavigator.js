@@ -28,16 +28,22 @@ const MainTabs = () => {
   );
 };
 
+import { useSelector } from 'react-redux';
+
 const AppNavigator = () => {
+  const isAuthenticated = useSelector(state => state.auth.isAuthenticated);
+
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Login"
         screenOptions={{
           headerShown: false,
         }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabs} />
+        {isAuthenticated ? (
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+        ) : (
+          <Stack.Screen name="Login" component={LoginScreen} />
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

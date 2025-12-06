@@ -39,13 +39,21 @@ class ApiService {
         return response;
       },
       (error) => {
-        const status = error?.response?.status;
-        const payload = error?.response?.data;
         const message = payload?.message || error.message || 'Request failed';
         console.error('[API Response Error]', status ? `${status} ${message}` : message, payload || '');
+        
+        if (status === 401 && this.onLogout) {
+          console.log('[ApiService] 401 Unauthorized - Triggering auto-logout');
+          this.onLogout();
+        }
+
         return Promise.reject(new Error(message));
       }
     );
+  }
+
+  setLogoutCallback(callback) {
+    this.onLogout = callback;
   }
 
   setToken(token) {

@@ -1,25 +1,15 @@
 import { configureStore } from '@reduxjs/toolkit';
 import createSagaMiddleware from 'redux-saga';
 import { persistStore, persistReducer } from 'redux-persist';
-import { encryptTransform } from 'redux-persist-transform-encrypt';
 import reduxStorage from './storage';
 import rootReducer from './rootReducer';
 import rootSaga from './rootSaga';
 
 const sagaMiddleware = createSagaMiddleware();
 
-const encryptor = encryptTransform({
-  secretKey: 'my-super-secret-key', // TODO: Move this to an environment variable (.env)
-  onError: function (error) {
-    // Handle the error
-    console.error('Encryption error:', error);
-  },
-});
-
 const persistConfig = {
   key: 'root',
   storage: reduxStorage,
-  transforms: [encryptor],
   whitelist: ['auth'], // Only persist the 'auth' slice
 };
 
