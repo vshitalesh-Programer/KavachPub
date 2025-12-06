@@ -30,20 +30,10 @@ const LoginScreen = ({navigation}) => {
 
   useEffect(() => {
     // Configure Google Sign-In
-    console.log('LoginScreen: GoogleSignin object:', GoogleSignin);
-    if (!GoogleSignin) {
-      console.error('LoginScreen: GoogleSignin is undefined! Check imports.');
-      return;
-    }
-    try {
-        GoogleSignin.configure({
-        webClientId: '295362807661-3ih4t86k29mk82oenen7kro7e5f1oldk.apps.googleusercontent.com',
-        offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
-        });
-        console.log('LoginScreen: GoogleSignin configured successfully');
-    } catch (e) {
-        console.error('LoginScreen: GoogleSignin configuration failed', e);
-    }
+    // GoogleSignin.configure({
+    //   webClientId: '295362807661-3ih4t86k29mk82oenen7kro7e5f1oldk.apps.googleusercontent.com',
+    //   offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
+    // });
   }, []);
 
   useEffect(() => {
@@ -62,7 +52,8 @@ const LoginScreen = ({navigation}) => {
     if (isLogin) {
         // Normal Login (Use isDemo: true ONLY if you want to skip real API)
         // Set isDemo: false to try REAL API
-        dispatch(loginRequest({ email, password, isDemo: false }));
+        navigation.replace('MainTabs');
+        // dispatch(loginRequest({ email, password, isDemo: false }));
     } else {
         // Signup
         // Note: We might need a Name field in the UI for real signup

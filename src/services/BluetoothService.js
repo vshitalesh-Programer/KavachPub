@@ -87,30 +87,82 @@ class BluetoothService {
     }
   }
 
-  async scanForDevices(duration = 5) {
+  async scanForDevices(duration = 20) {
     try {
       console.log('🔵 [BLE Service] scanForDevices called, duration:', duration);
-      
-      const state = await BleManager.checkState();
-      if (state !== 'on') {
-        throw new Error(`Bluetooth is ${state}. Please enable Bluetooth.`);
-      }
 
       // Stop any existing scan first
       try {
         await BleManager.stopScan();
       } catch (e) {
-        // ignore
+        console.log('🔵 [BLE Service] No existing scan to stop');
       }
 
-      console.log('🔵 [BLE Service] Starting scan via BleManager.scan()...');
-      // scan(serviceUUIDs, seconds, allowDuplicates, options)
-      await BleManager.scan(null, duration, true, { numberOfMatches: 1, matchMode: 1, scanMode: 2 });
-      console.log('✅ [BLE Service] Scan started successfully');
+      // Use NativeModules scan with a ReadableMap (object) to avoid "expected Map got array"
+      const scanOptions = {
+        serviceUUIDs: [],     // empty = all devices
+        seconds: duration,
+        allowDuplicates: true,
+      };
 
+      console.log('🔵 [BLE Service] Starting scan with NativeModules.BleManager.scan()', scanOptions);
+      await new Promise((resolve, reject) => {
+        NativeModules.BleManager.scan(scanOptions, (error) => {
+          if (error) {
+            console.error('🔴 [BLE Service] Scan callback error:', error);
+            reject(error);
+          } else {
+            console.log('✅ [BLE Service] Scan started successfully');
+            resolve();
+          }
+        });
+      });
     } catch (error) {
       console.error('🔴 [BLE Service] Scan error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Classic Bluetooth: fetch bonded devices and discover nearby classic devices.
+   * Returns { bonded: [], discovered: [] }
+   */
+  async scanClassicDevices() {
+    const result = { bonded: [], discovered: [] };
+    try {
+      if (!RNBluetoothClassic?.startDiscovery) {
+        console.log('🔵 [BT Classic] Module not available, skipping classic scan');
+        return result;
+      }
+
+      // Bonded (paired) devices
+      try {
+        const bonded = await RNBluetoothClassic.getBondedDevices();
+        result.bonded = bonded.map(d => ({ ...d, type: 'classic', isBonded: true }));
+        console.log('🔵 [BT Classic] Bonded devices:', result.bonded.length);
+      } catch (e) {
+        console.warn('⚠️ [BT Classic] Failed to get bonded devices', e);
+      }
+
+      // Cancel ongoing discovery before starting a new one
+      try {
+        await RNBluetoothClassic.cancelDiscovery();
+      } catch (e) {
+        // ignore
+      }
+
+      try {
+        const discovered = await RNBluetoothClassic.startDiscovery();
+        result.discovered = discovered.map(d => ({ ...d, type: 'classic', isBonded: false }));
+        console.log('🔵 [BT Classic] Discovered classic devices:', result.discovered.length);
+      } catch (e) {
+        console.warn('⚠️ [BT Classic] Classic discovery failed', e);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('🔴 [BT Classic] scanClassicDevices error:', error);
+      return result;
     }
   }
 

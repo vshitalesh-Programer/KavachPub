@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert } from 'react-native';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
@@ -13,6 +13,7 @@ const HomeScreen = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [eventCount, setEventCount] = useState(0); // Track if events are received
   const [lastEvent, setLastEvent] = useState(null); // Store last event for debugging
+  const scanTimeoutRef = useRef(null);
 
   useEffect(() => {
     BluetoothService.initialize();
@@ -27,7 +28,11 @@ const HomeScreen = () => {
         // Ensure map is a Map instance
         const currentMap = map instanceof Map ? map : new Map();
         const newMap = new Map(currentMap);
-        newMap.set(peripheral.id, peripheral);
+        newMap.set(peripheral.id, {
+          ...peripheral,
+          type: peripheral.type || 'ble',
+          isBonded: peripheral.isBonded || false,
+        });
         console.log('✅ [BLE] Updated peripherals count:', newMap.size, 'Device:', peripheral.name || peripheral.id);
         return newMap;
       });
@@ -76,19 +81,36 @@ const HomeScreen = () => {
       const hasPermissions = await BluetoothService.requestPermissions();
       console.log('🟢 [BLE] Permissions granted:', hasPermissions);
       if (hasPermissions) {
+        // Ensure previous timeout/scan is cleared
+        if (scanTimeoutRef.current) {
+          clearTimeout(scanTimeoutRef.current);
+          scanTimeoutRef.current = null;
+        }
+        try {
+          await BleManager.stopScan();
+          console.log('🟢 [BLE] Stopped any previous scan before restart');
+        } catch (e) {
+          // ignore
+        }
+
         setPeripherals(new Map());
         setEventCount(0); // Reset event counter
         setLastEvent(null); // Reset last event
         setIsScanning(true);
-        setIsModalVisible(true);
 
-        // Fetch bonded (paired) devices first (includes Classic devices)
-        BluetoothService.getBondedDevices().then(bondedDevices => {
-          console.log('🔵 [BLE] Found bonded devices:', bondedDevices.length);
+        // Fetch bonded classic devices and discover nearby classic devices
+        BluetoothService.scanClassicDevices().then(({ bonded, discovered }) => {
+          console.log('🔵 [BT Classic] Bonded:', bonded.length, 'Discovered:', discovered.length);
           setPeripherals((prevMap) => {
             const newMap = new Map(prevMap);
-            bondedDevices.forEach(device => {
-               newMap.set(device.id, device); // BleManager uses 'id'
+            [...bonded, ...discovered].forEach(device => {
+              if (device?.id) {
+                newMap.set(device.id, {
+                  ...device,
+                  type: 'classic',
+                  isBonded: !!device.isBonded,
+                });
+              }
             });
             return newMap;
           });
@@ -124,12 +146,12 @@ const HomeScreen = () => {
         
         // Start the scan
         console.log('🟢 [BLE] Calling scanForDevices...');
-        await BluetoothService.scanForDevices(10); // 10 seconds
+        await BluetoothService.scanForDevices(20); // 20 seconds
         console.log('🟢 [BLE] Scan initiated, waiting for devices...');
         console.log('🟢 [BLE] Event listeners should be active. Waiting for BleManagerDiscoverPeripheral events...');
         
         // Auto-stop scanning after duration
-        setTimeout(async () => {
+        scanTimeoutRef.current = setTimeout(async () => {
           console.log('🟡 [BLE] Auto-stopping scan after timeout');
           try {
             await BleManager.stopScan();
@@ -145,7 +167,8 @@ const HomeScreen = () => {
             console.log('🟡 [BLE] Final device count:', currentMap.size);
             return currentMap;
           });
-        }, 10000);
+          scanTimeoutRef.current = null;
+        }, 20000); // 20 seconds
       } else {
         console.warn('🔴 [BLE] Bluetooth permissions denied');
         Alert.alert('Permission Required', 'Bluetooth permissions are required to scan for devices.');
@@ -190,12 +213,77 @@ const HomeScreen = () => {
     }
   };
 
-  const renderDeviceItem = ({ item }) => (
-    <TouchableOpacity style={styles.deviceItem} onPress={() => connectToDevice(item)}>
-      <Text style={styles.deviceName}>{item.name || 'Unknown Device'}</Text>
-      <Text style={styles.deviceId}>{item.id}</Text>
-    </TouchableOpacity>
-  );
+  const handleReconnect = async () => {
+    console.log('🟢 [BLE] Reconnect/Scan pressed: resetting state and restarting scan');
+    try {
+      await BleManager.stopScan();
+    } catch (e) {
+      // ignore
+    }
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
+    setPeripherals(new Map());
+    setEventCount(0);
+    setLastEvent(null);
+    setIsScanning(false);
+    startScan();
+  };
+
+  const handleCloseModal = async () => {
+    console.log('🟢 [BLE] Close modal pressed: stopping scan and resetting state');
+    try {
+      await BleManager.stopScan();
+    } catch (e) {
+      // ignore
+    }
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
+    setIsScanning(false);
+    setPeripherals(new Map());
+    setEventCount(0);
+    setLastEvent(null);
+    setIsModalVisible(false);
+  };
+
+  const openScanModal = async () => {
+    // Do not start scanning here—just open the modal and reset state
+    try {
+      await BleManager.stopScan();
+    } catch (e) {
+      // ignore
+    }
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
+    setPeripherals(new Map());
+    setEventCount(0);
+    setLastEvent(null);
+    setIsScanning(false);
+    setIsModalVisible(true);
+  };
+
+  const renderDeviceItem = ({ item }) => {
+    const isClassic = item?.type === 'classic';
+    const isBonded = item?.isBonded;
+    return (
+      <TouchableOpacity style={styles.deviceItem} onPress={() => connectToDevice(item)}>
+        <View style={styles.deviceHeader}>
+          <Text style={styles.deviceName}>{item.name || 'Unknown Device'}</Text>
+          <View style={styles.tagRow}>
+            {isClassic && <Text style={[styles.tag, styles.classicTag]}>Classic</Text>}
+            {isBonded && <Text style={[styles.tag, styles.bondedTag]}>Paired</Text>}
+            {!isClassic && !isBonded && <Text style={[styles.tag, styles.bleTag]}>BLE</Text>}
+          </View>
+        </View>
+        <Text style={styles.deviceId}>{item.id}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const handleSOS = async () => {
     try {
@@ -237,8 +325,8 @@ const HomeScreen = () => {
         </View>
       </View>
 
-      {/* New Bluetooth Scan Section */}
-      <TouchableOpacity style={styles.scanCard} onPress={startScan}>
+          {/* New Bluetooth Scan Section */}
+          <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
         <View style={styles.scanContent}>
           <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
           <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
@@ -293,7 +381,17 @@ const HomeScreen = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Available Devices</Text>
-              {isScanning && <ActivityIndicator color="#007AFF" />}
+              <View style={styles.modalHeaderRight}>
+            {isScanning && <ActivityIndicator color="#DC2626" style={styles.scanIndicator} />}
+            {!isScanning && (
+              <TouchableOpacity 
+                style={styles.reconnectButton}
+                onPress={handleReconnect}
+              >
+                <Text style={styles.reconnectButtonText}>Reconnect</Text>
+              </TouchableOpacity>
+            )}
+              </View>
             </View>
             
             {/* Debug Info */}
@@ -311,7 +409,16 @@ const HomeScreen = () => {
             </View>
 
             <FlatList
-              data={peripherals instanceof Map ? Array.from(peripherals.values()) : []}
+              data={
+                peripherals instanceof Map
+                  ? Array.from(peripherals.values()).sort((a, b) => {
+                      const aBonded = !!a?.isBonded;
+                      const bBonded = !!b?.isBonded;
+                      if (aBonded === bBonded) return 0;
+                      return aBonded ? 1 : -1; // bonded go to bottom
+                    })
+                  : []
+              }
               renderItem={renderDeviceItem}
               keyExtractor={(item, index) => item?.id || `device-${index}`}
               contentContainerStyle={styles.listContent}
@@ -338,10 +445,7 @@ const HomeScreen = () => {
 
             <TouchableOpacity 
               style={styles.closeButton} 
-              onPress={() => {
-                console.log('Closing modal');
-                setIsModalVisible(false);
-              }}
+              onPress={handleCloseModal}
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
@@ -527,10 +631,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
   },
+  modalHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   modalTitle: {
     color: 'white',
     fontSize: 20,
     fontWeight: '700',
+  },
+  scanIndicator: {
+    marginRight: 0,
+  },
+  reconnectButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DC2626',
+  },
+  reconnectButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   listContent: {
     paddingBottom: 20,
@@ -541,6 +666,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
   },
+  deviceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   deviceName: {
     color: 'white',
     fontSize: 16,
@@ -550,6 +681,30 @@ const styles = StyleSheet.create({
     color: '#9A9FA5',
     fontSize: 12,
     marginTop: 2,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  tag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    fontSize: 10,
+    fontWeight: '700',
+    overflow: 'hidden',
+  },
+  classicTag: {
+    backgroundColor: '#312e81',
+    color: '#e0e7ff',
+  },
+  bondedTag: {
+    backgroundColor: '#064e3b',
+    color: '#d1fae5',
+  },
+  bleTag: {
+    backgroundColor: '#1f2937',
+    color: '#e5e7eb',
   },
   emptyContainer: {
     padding: 20,
