@@ -13,15 +13,21 @@ import { addIncident } from '../redux/slices/incidentSlice';
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
-const HomeScreen = () => {
+const HomeScreen = ({ navigation }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [peripherals, setPeripherals] = useState(new Map());
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isLogModalVisible, setIsLogModalVisible] = useState(false);
   const [eventCount, setEventCount] = useState(0); // Track if events are received
   const [lastEvent, setLastEvent] = useState(null); // Store last event for debugging
   const scanTimeoutRef = useRef(null);
   const dispatch = useDispatch();
   const incidents = useSelector(state => state.incidents.incidents);
+  const contacts = useSelector(state => state.contacts.contacts) || [];
+  
+  // Flatten contacts if they are sectioned
+  const contactCount = contacts.reduce((acc, section) => acc + (section.data ? section.data.length : 0), 0);
+  
   const lastLoggedIncident = incidents.length > 0 ? incidents[0] : null;
 
   useEffect(() => {
@@ -384,14 +390,14 @@ const HomeScreen = () => {
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
-          <View style={styles.statBox}>
+          <TouchableOpacity style={styles.statBox} onPress={() => navigation.navigate('Contacts')}>
             <Text style={styles.statLabel}>Contacts</Text>
-            <Text style={styles.statValue}>-</Text>
-          </View>
+            <Text style={styles.statValue}>{contactCount}</Text>
+          </TouchableOpacity>
 
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>Incidents</Text>
-            <Text style={styles.statValue}>-</Text>
+            <Text style={styles.statValue}>{incidents.length}</Text>
           </View>
         </View>
 
@@ -427,7 +433,7 @@ const HomeScreen = () => {
              <Text style={styles.lastIncidentValue}>No incidents recorded.</Text>
         )}
 
-        <TouchableOpacity style={styles.viewLogBtn}>
+        <TouchableOpacity style={styles.viewLogBtn} onPress={() => setIsLogModalVisible(true)}>
           <Text style={styles.viewLogText}>View Log</Text>
         </TouchableOpacity>
 
@@ -446,13 +452,13 @@ const HomeScreen = () => {
           </Text>
 
           {/* SOS Button */}
-          <View style={styles.sosContainer}>
+          {/* <View style={styles.sosContainer}>
             <TouchableOpacity style={styles.sosButton} onLongPress={handleSOS} delayLongPress={1000}>
               <Text style={styles.sosIcon}>🚨</Text>
               <Text style={styles.sosText}>SOS</Text>
               <Text style={styles.sosSubText}>Press & hold</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </View>
 
         {/* Last Incident */}
@@ -546,6 +552,46 @@ const HomeScreen = () => {
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Log Modal */}
+      <Modal
+        visible={isLogModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsLogModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Recent Incident</Text>
+              <TouchableOpacity onPress={() => setIsLogModalVisible(false)}>
+                 <Text style={{color: '#9A9FA5', fontSize: 16}}>Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={incidents.slice(0, 1)}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <Text style={{color: '#9A9FA5', textAlign: 'center', marginTop: 20}}>
+                  No incidents recorded properly.
+                </Text>
+              }
+              renderItem={({ item }) => (
+                <View style={styles.deviceItem}>
+                  <View style={styles.deviceHeader}>
+                    <Text style={styles.deviceName}>{item.time}</Text>
+                    <Text style={[styles.tag, styles.bondedTag]}>{item.mode}</Text>
+                  </View>
+                  <Text style={styles.deviceId}>Lat: {item.lat}, Lng: {item.lng}</Text>
+                  <Text style={styles.deviceId}>IP: {item.ip}</Text>
+                </View>
+              )}
+            />
           </View>
         </View>
       </Modal>

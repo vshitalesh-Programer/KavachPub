@@ -1,12 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet, SectionList, TouchableOpacity, ActivityIndicator, PermissionsAndroid, Platform } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { setContacts as setContactsAction } from '../redux/slices/contactSlice';
 import LinearGradient from 'react-native-linear-gradient';
 import Contacts from 'react-native-contacts';
 import ApiService from '../services/ApiService';
 
 
 const ContactsScreen = () => {
-  const [contacts, setContacts] = React.useState([]);
+  const dispatch = useDispatch();
+  const contactsFromStore = useSelector(state => state.contacts.contacts);
+  const [contacts, setContacts] = React.useState(contactsFromStore || []);
   const [loading, setLoading] = React.useState(false);
   const [permissionStatus, setPermissionStatus] = React.useState('idle'); // idle | granted | denied | requesting
 
@@ -17,6 +21,7 @@ const ContactsScreen = () => {
       const deviceContacts = await Contacts.getAllWithoutPhotos();
       const formatted = formatDeviceContacts(deviceContacts);
       setContacts(formatted);
+      dispatch(setContactsAction(formatted));
     } catch (error) {
       console.error('Failed to load contacts', error?.message || error);
       setContacts([]);
