@@ -75,8 +75,9 @@ class ApiService {
 
   // --- Authentication ---
   async googleLogin(idToken) {
-    const response = await this.api.post(`${AUTH_PREFIX}/login/google`, {
+    const response = await this.api.post(`${AUTH_PREFIX}/sign-in/social`, {
       token: idToken,
+      provider: 'google',
     });
     const data = this.unwrapResponse(response);
     if (data && data.token) {

@@ -32,7 +32,7 @@ const LoginScreen = ({navigation}) => {
   useEffect(() => {
     // Configure Google Sign-In
     GoogleSignin.configure({
-      webClientId: '295362807661-3ih4t86k29mk82oenen7kro7e5f1oldk.apps.googleusercontent.com',
+      webClientId: '999458970644-o52123eaouv9jibt74ki8c4d7uhclo6k.apps.googleusercontent.com',
       offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
     });
   }, []);
@@ -69,56 +69,55 @@ const LoginScreen = ({navigation}) => {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      
-      // Check if your device supports Google Play
-      await GoogleSignin.hasPlayServices({showPlayServicesUpdateDialog: true});
-      
-      // Get the user's ID token
+  
+      // Check if Google Play Services is available
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  
       const userInfo = await GoogleSignin.signIn();
-      
-      // Get the ID token for backend verification
-      const {idToken} = await GoogleSignin.getTokens();
-      
-      console.log('Google Sign-In Success:', userInfo);
-      
-      // Dispatch login request with Google token to Redux
-      dispatch(loginRequest({ 
-        googleToken: idToken || userInfo.idToken,
-        email: userInfo.user.email,
-        isDemo: false 
-      }));
-      
-      setIsLoading(false);
+  
+      console.log("Google Sign-In Success:", JSON.stringify(userInfo, null, 2));
+  
+      const email = userInfo?.user?.email || userInfo?.data?.user?.email ;
+      const idToken = userInfo?.idToken || userInfo?.data?.idToken;
+      console.log("Google Sign-In Success: 11", idToken, JSON.stringify(userInfo, null, 2));
+      if (!idToken) {
+        throw new Error("Google Token missing");
+      }
+
+      console.log("Google Sign-In Success: 12", JSON.stringify(userInfo, null, 2));
+  
+      if (!email) {
+        throw new Error("Email not found in Google response");
+      }
+
+      console.log("Google Sign-In Success: 13", JSON.stringify(userInfo, null, 2));
+  
+      dispatch(
+        loginRequest({
+          googleToken: idToken,
+          email: email || '',
+          isDemo: false,
+        })
+      );
+
+      console.log("Google Sign-In Success: 14", JSON.stringify(userInfo, null, 2));
+  
     } catch (error) {
       setIsLoading(false);
       
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log('LoginScreen: User cancelled the login flow');
-        Alert.alert('Cancelled', 'Sign-in was cancelled');
+        Alert.alert("Cancelled", "Sign in was cancelled");
       } else if (error.code === statusCodes.IN_PROGRESS) {
-        console.log('LoginScreen: Sign in is in progress already');
+        Alert.alert("In Progress", "Sign in is already in progress");
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        console.log('LoginScreen: Play services not available or outdated');
-        Alert.alert('Error', 'Google Play Services are required for sign in.');
+        Alert.alert("Error", "Play services not available or outdated");
       } else {
-        console.error('LoginScreen: Google Sign-In Error', error);
-        
-        // Detailed error message handling
-        let errorMessage = 'An error occurred during Google Sign-In.';
-        if (error.message) errorMessage += `\n${error.message}`;
-        if (error.code) errorMessage += `\n(Code: ${error.code})`;
-        
-        if (error.code === 'DEVELOPER_ERROR') {
-            errorMessage += '\n\nConfiguration Error: Check your SHA-1 fingerprint in Firebase and ensure google-services.json is valid (not the dummy one).';
-        }
-        
-        Alert.alert('Google Sign-In Failed', errorMessage);
+        console.error("Google Sign-In Error:", error);
+        Alert.alert("Error", error.message || "Something went wrong with Google Sign-In");
       }
-    } finally {
-      setIsLoading(false);
     }
   };
-
+  
   return (
     <LinearGradient
       colors={['#140e12', '#0a0b10']}
