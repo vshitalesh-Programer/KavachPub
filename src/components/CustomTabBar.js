@@ -1,15 +1,17 @@
 import React from 'react';
 import {View, TouchableOpacity, Text, StyleSheet} from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
+import SimpleLineIcon from 'react-native-vector-icons/SimpleLineIcons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {normalize} from '../utils/AppFonts';
 
 const CustomTabBar = ({state, descriptors, navigation}) => {
   const insets = useSafeAreaInsets();
   const tabs = [
-    {name: 'Home', label: 'Home', icon: '🛡️'},
-    {name: 'Contacts', label: 'Contacts', icon: '👥'},
-    {name: 'Incidents', label: 'Incidents', icon: '📍'},
-    {name: 'Settings', label: 'Settings', icon: '⚙️'},
+    {name: 'Home', label: 'Home', icon: 'shield', activeIcon: 'shield', set: 'feather'},
+    {name: 'Contacts', label: 'Contacts', icon: 'users', activeIcon: 'users', set: 'feather'},
+    {name: 'Incidents', label: 'Incidents', icon: 'location-pin', activeIcon: 'location-pin', set: 'simple'},
+    {name: 'Settings', label: 'Settings', icon: 'settings', activeIcon: 'settings', set: 'feather'},
   ];
 
   return (
@@ -53,13 +55,21 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
                   styles.tab,
                   isFocused && styles.tabActive,
                 ]}>
-                <Text
-                  style={[
-                    styles.icon,
-                    isFocused && styles.iconActive,
-                  ]}>
-                  {tab && tab.icon ? tab.icon : '•'}
-                </Text>
+                {tab?.set === 'simple' ? (
+                  <SimpleLineIcon
+                    name={isFocused && tab?.activeIcon ? tab.activeIcon : tab?.icon || 'location-pin'}
+                    size={normalize(18)}
+                    color={isFocused ? '#D6282f' : '#9CA3AF'}
+                    style={styles.icon}
+                  />
+                ) : (
+                  <Icon
+                    name={isFocused && tab?.activeIcon ? tab.activeIcon : tab?.icon || 'circle'}
+                    size={normalize(18)}
+                    color={isFocused ? '#D6282f' : '#9CA3AF'}
+                    style={styles.icon}
+                  />
+                )}
                 <Text
                   style={[
                     styles.label,
@@ -72,7 +82,7 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
               {/* Lightning bolt button on Home tab */}
               {route.name === 'Home' && (
                 <TouchableOpacity style={styles.lightningButton}>
-                  <Text style={styles.lightningIcon}>⚡</Text>
+                  <Icon name="zap" size={normalize(20)} color="#FFFFFF" />
                 </TouchableOpacity>
               )}
             </View>
@@ -85,9 +95,9 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#07080C',
     borderTopWidth: 1,
-    borderTopColor: '#9CA3AF',
+    borderTopColor: '#2C2F35',
   },
   tabBar: {
     flexDirection: 'row',

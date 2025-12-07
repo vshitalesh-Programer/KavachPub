@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView, PermissionsAndroid,Platform } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-// import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
+import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
+import { normalize } from '../utils/AppFonts';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
 import BleManager from 'react-native-ble-manager';
@@ -59,15 +60,8 @@ const HomeScreen = ({ navigation }) => {
       console.log('Total devices found:', peripherals.size);
     };
 
-    console.log('🔵 [BLE] Setting up BLE event listeners...');
-    console.log('🔵 [BLE] BleManagerModule:', BleManagerModule ? 'Found' : 'NOT FOUND');
-    console.log('🔵 [BLE] bleManagerEmitter:', bleManagerEmitter ? 'Created' : 'NOT CREATED');
     
     const discoverListener = bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', (data) => {
-      console.log('🔵 [BLE] ===== BleManagerDiscoverPeripheral EVENT RECEIVED =====');
-      console.log('🔵 [BLE] Event data:', JSON.stringify(data, null, 2));
-      console.log('🔵 [BLE] Event data type:', typeof data);
-      console.log('🔵 [BLE] Event data keys:', data ? Object.keys(data) : 'null');
       
       // Track events
       setEventCount(prev => prev + 1);
@@ -371,22 +365,49 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <LinearGradient
-      colors={['#2b1216', '#0c0b11']}
+      colors={['#240E11', '#0c0b11']}
       start={{x: 0, y: 0}}
       end={{x: 0, y: 1}}
       angle={190}
       useAngle={true}
       style={styles.gradient}>
       <View style={styles.container}>
+         {/* Header */}
+         <View style={[styles.header,{flexDirection: 'row'}]}>
+        <View style={styles.logoContainer}>
+              <View style={styles.logoIcon}>
+                <Svg width={normalize(24)} height={normalize(24)} viewBox="0 0 128 128">
+                  <Defs>
+                    <SvgLinearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                      <Stop offset="0" stopColor="#ef4444" />
+                      <Stop offset="1" stopColor="#dc2626" />
+                    </SvgLinearGradient>
+                  </Defs>
+                  <Path
+                    fill="url(#g)"
+                    d="M64 8c12 10 28 12 44 12v40c0 26-18 49-44 60C38 109 20 86 20 60V20c16 0 32-2 44-12z"
+                  />
+                  <Path
+                    fill="white"
+                    opacity="0.14"
+                    d="M64 14c9 8 22 10 35 11v33c0 22-15 41-35 50-20-9-35-28-35-50V25c13-1 26-3 35-11z"
+                  />
+                </Svg>
+              </View>
+            </View>
+            <View>
+            <Text style={styles.appName}>Kavach</Text>
+            <Text style={styles.subtitle}>Safety Console</Text>
+            </View>
+         
+        </View>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
         
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.appName}>Kavach</Text>
-          <Text style={styles.subtitle}>Safety Console</Text>
-        </View>
+
+       
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
@@ -626,7 +647,7 @@ const styles = StyleSheet.create({
 
   subtitle: {
     color: '#9A9FA5',
-    marginTop: 4,
+    // marginTop: 4,
   },
 
   statsRow: {
@@ -893,6 +914,22 @@ const styles = StyleSheet.create({
     color: '#9A9FA5',
     fontSize: 12,
     fontFamily: 'monospace',
+  },
+  logoContainer: {
+    marginBottom: 16,
+    backgroundColor:'#2b1216',
+    borderRadius: 12,
+    width: normalize(48),
+    height: normalize(48),
+    marginEnd: normalize(10),
+    borderWidth: 1,
+    borderColor: '#2C2F35',
+  },
+  logoIcon: {
+    width: normalize(48),
+    height: normalize(48),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

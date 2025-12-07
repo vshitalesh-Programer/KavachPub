@@ -118,7 +118,7 @@ const ContactsScreen = () => {
 
   return (
     <LinearGradient
-      colors={['#2b1216', '#0c0b11']}
+      colors={['#240E11', '#0c0b11']}
       start={{x: 0, y: 0}}
       end={{x: 0, y: 1}}
       angle={190}
