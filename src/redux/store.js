@@ -10,7 +10,7 @@ const sagaMiddleware = createSagaMiddleware();
 const persistConfig = {
   key: 'root',
   storage: reduxStorage,
-  whitelist: ['auth'], // Only persist the 'auth' slice
+  whitelist: ['auth', 'incidents'], // Only persist the 'auth' and 'incidents' slice
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

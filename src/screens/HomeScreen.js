@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView, PermissionsAndroid,Platform } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 // import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
 import BleManager from 'react-native-ble-manager';
+import Geolocation from 'react-native-geolocation-service';
+import DeviceInfo from 'react-native-device-info';
+import { useDispatch, useSelector } from 'react-redux';
+import { addIncident } from '../redux/slices/incidentSlice';
 
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
@@ -16,6 +20,9 @@ const HomeScreen = () => {
   const [eventCount, setEventCount] = useState(0); // Track if events are received
   const [lastEvent, setLastEvent] = useState(null); // Store last event for debugging
   const scanTimeoutRef = useRef(null);
+  const dispatch = useDispatch();
+  const incidents = useSelector(state => state.incidents.incidents);
+  const lastLoggedIncident = incidents.length > 0 ? incidents[0] : null;
 
   useEffect(() => {
     BluetoothService.initialize();
@@ -290,18 +297,69 @@ const HomeScreen = () => {
   const handleSOS = async () => {
     try {
         console.log('Triggering SOS...');
-        // In a real app, get GPS location here
-        const locationData = {
-            latitude: 0, 
-            longitude: 0,
-            deviceId: 'test-device-id', // Use proper device ID lib
-            deviceInfo: 'Android Emulator'
+        
+        let ipAddress = '0.0.0.0';
+        try {
+            ipAddress = await DeviceInfo.getIpAddress();
+        } catch(e) { console.warn('Failed to get IP', e); }
+
+        if (Platform.OS === 'android') {
+             try {
+                const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+                if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+                    console.warn('Location permission denied');
+                }
+             } catch (err) {
+                 console.warn('Permission request error', err);
+             }
+        }
+
+        const dispatchIncident = async (lat, lng) => {
+            const timestamp = new Date().toLocaleString();
+            const incidentData = {
+                id: Date.now().toString(),
+                time: timestamp,
+                lat: lat || 0,
+                lng: lng || 0,
+                mode: 'Loud', 
+                ip: ipAddress,
+            };
+            
+            console.log('Dispatching SOS incident:', incidentData);
+            dispatch(addIncident(incidentData));
+
+            // Send to API
+            try {
+                const locationData = {
+                    latitude: lat || 0, 
+                    longitude: lng || 0,
+                    deviceId: await DeviceInfo.getUniqueId(),
+                    deviceInfo: await DeviceInfo.getDeviceName(),
+                    ip: ipAddress
+                };
+                const response = await ApiService.triggerEmergency(locationData);
+                const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
+                Alert.alert('SOS Sent', message);
+            } catch (err) {
+                console.error('API Error:', err);
+                Alert.alert('SOS Saved', 'Logged locally. Failed to send to server.');
+            }
         };
-        const response = await ApiService.triggerEmergency(locationData);
-        const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
-        alert(message);
+
+        Geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                dispatchIncident(latitude, longitude);
+            },
+            (error) => {
+                console.error('Location Error:', error);
+                // Fallback to 0,0
+                dispatchIncident(0, 0);
+            },
+            { enableHighAccuracy: false, timeout: 5000, maximumAge: 10000 }
+        );
     } catch (error) {
-        alert(`Failed to send alert: ${error.message || error}`);
+        Alert.alert('Error', `Failed to initiate SOS: ${error.message || error}`);
     }
   };
 
@@ -317,7 +375,7 @@ const HomeScreen = () => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-
+        
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.appName}>Kavach</Text>
@@ -347,9 +405,34 @@ const HomeScreen = () => {
             <Text style={styles.scanIcon}>📡</Text>
           </View>
         </TouchableOpacity>
+        <Text style={styles.cardSubText}>
+          Hold <Text style={styles.bold}>5s</Text> • Mode Loud
+        </Text>
+
+        {/* SOS Button */}
+        <View style={styles.sosContainer}>
+          <TouchableOpacity style={styles.sosButton} onLongPress={handleSOS} delayLongPress={1000}>
+            <Text style={styles.sosIcon}>🚨</Text>
+            <Text style={styles.sosText}>SOS</Text>
+            <Text style={styles.sosSubText}>Press & hold</Text>
+          </TouchableOpacity>
+        </View>
+      {/* </View> */}
+
+      <View style={styles.lastIncidentCard}>
+        <Text style={styles.lastIncidentLabel}>Last Incident</Text>
+        {lastLoggedIncident ? (
+             <Text style={styles.lastIncidentValue}>{lastLoggedIncident.time} • {lastLoggedIncident.mode}</Text>
+        ) : (
+             <Text style={styles.lastIncidentValue}>No incidents recorded.</Text>
+        )}
+
+        <TouchableOpacity style={styles.viewLogBtn}>
+          <Text style={styles.viewLogText}>View Log</Text>
+        </TouchableOpacity>
 
         {/* Ready to Protect */}
-        <View style={styles.card}>
+        {/* <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Ready to Protect</Text>
 
@@ -373,14 +456,14 @@ const HomeScreen = () => {
         </View>
 
         {/* Last Incident */}
-        <View style={styles.lastIncidentCard}>
+        {/* <View style={styles.lastIncidentCard}>
           <Text style={styles.lastIncidentLabel}>Last Incident</Text>
           <Text style={styles.lastIncidentValue}>05/08/2025, 02:44:00 • Loud</Text>
 
           <TouchableOpacity style={styles.viewLogBtn}>
             <Text style={styles.viewLogText}>View Log</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
         </ScrollView>
       </View>
 

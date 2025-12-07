@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Dimensions } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const MOCK_INCIDENTS = [
   {
@@ -18,35 +19,70 @@ const MOCK_INCIDENTS = [
   },
 ];
 
+import { useSelector } from 'react-redux';
+
 const IncidentsScreen = () => {
+  const incidents = useSelector(state => state.incidents.incidents);
+  const mapRef = React.useRef(null);
+
+  // Automatically focus on the new incident when it arrives
+  React.useEffect(() => {
+    if (incidents.length > 0 && incidents[0].lat !== 0) {
+      mapRef.current?.animateToRegion({
+        latitude: incidents[0].lat,
+        longitude: incidents[0].lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
+    }
+  }, [incidents]);
+
+  const handleIncidentPress = (incident) => {
+    if (incident.lat !== 0) {
+      mapRef.current?.animateToRegion({
+        latitude: incident.lat,
+        longitude: incident.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500);
+    }
+  };
+
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.timeText}>{item.time}</Text>
-        <View style={styles.modeBadge}>
-          <Text style={styles.modeText}>{item.mode}</Text>
+    <TouchableOpacity activeOpacity={0.9} onPress={() => handleIncidentPress(item)}>
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.timeText}>{item.time}</Text>
+          <View style={styles.modeBadge}>
+            <Text style={styles.modeText}>{item.mode}</Text>
+          </View>
+        </View>
+        
+        <View style={styles.locationContainer}>
+          <Text style={styles.locationLabel}>Location</Text>
+          <Text style={styles.locationValue}>
+            {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
+          </Text>
+          {item.ip && (
+            <Text style={[styles.locationValue, { marginTop: 4, fontSize: 12, color: '#9A9FA5' }]}>
+              IP: {item.ip}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionButton}>
+            <Text style={styles.actionIcon}>🔗</Text>
+            <Text style={styles.actionText}>Share</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={[styles.actionButton, styles.deleteButton]}>
+            <Text style={styles.actionIcon}>🗑️</Text>
+            <Text style={styles.actionText}>Delete</Text>
+          </TouchableOpacity>
         </View>
       </View>
-      
-      <View style={styles.locationContainer}>
-        <Text style={styles.locationLabel}>Location</Text>
-        <Text style={styles.locationValue}>
-          {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
-        </Text>
-      </View>
-
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>🔗</Text>
-          <Text style={styles.actionText}>Share</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.actionButton, styles.deleteButton]}>
-          <Text style={styles.actionIcon}>🗑️</Text>
-          <Text style={styles.actionText}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -56,17 +92,47 @@ const IncidentsScreen = () => {
         <Text style={styles.subtitle}>History & Reports</Text>
       </View>
 
-      {/* Map Placeholder */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapPlaceholderText}>Map View Placeholder</Text>
-      </View>
+      {/* Map View */}
+      {incidents.length > 0 && incidents[0].lat !== 0 ? (
+          <MapView
+            ref={mapRef}
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={{
+                latitude: incidents[0].lat,
+                longitude: incidents[0].lng,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+            }}
+          >
+            {incidents.map((incident) => (
+                incident.lat !== 0 && (
+                    <Marker
+                        key={incident.id}
+                        coordinate={{ latitude: incident.lat, longitude: incident.lng }}
+                        title={`SOS ${incident.time}`}
+                        description={`IP: ${incident.ip || 'N/A'}`}
+                    />
+                )
+            ))}
+          </MapView>
+      ) : (
+        <View style={styles.mapPlaceholder}>
+            <Text style={styles.mapPlaceholderText}>
+                {incidents.length === 0 ? 'No incidents to map' : 'Location not available'}
+            </Text>
+        </View>
+      )}
 
       <FlatList
-        data={MOCK_INCIDENTS}
+        data={incidents}
         renderItem={renderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+             <Text style={{color: '#777', textAlign: 'center', marginTop: 20}}>No incidents yet.</Text>
+        }
       />
     </View>
   );
@@ -92,8 +158,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9A9FA5',
   },
+  map: {
+    height: 200,
+    borderRadius: 16,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
   mapPlaceholder: {
-    height: 150,
+    height: 200,
     backgroundColor: '#16171D',
     borderRadius: 16,
     marginBottom: 20,
