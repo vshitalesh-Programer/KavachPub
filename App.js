@@ -12,7 +12,7 @@ import { logout } from './src/redux/slices/authSlice';
 import ApiService from './src/services/ApiService';
 
 const AuthSync = ({ children }) => {
-  const user = useSelector(state => state.auth.user);
+  const { user, token } = useSelector(state => state.auth);
   const dispatch = useDispatch();
   
   React.useEffect(() => {
@@ -24,12 +24,12 @@ const AuthSync = ({ children }) => {
   
   React.useEffect(() => {
     console.log('[App] AuthSync user changed:', user ? 'Logged In' : 'Null');
-    if (user && user.token) {
-      ApiService.setToken(user.token);
+    if (token) {
+      ApiService.setToken(token);
     } else {
       ApiService.setToken(null);
     }
-  }, [user]);
+  }, [user, token]);
 
   return children;
 };

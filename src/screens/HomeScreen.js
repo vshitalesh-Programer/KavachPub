@@ -373,124 +373,86 @@ const HomeScreen = ({ navigation }) => {
       style={styles.gradient}>
       <View style={styles.container}>
          {/* Header */}
-         <View style={[styles.header,{flexDirection: 'row'}]}>
-        <View style={styles.logoContainer}>
-              <View style={styles.logoIcon}>
-                <Svg width={normalize(24)} height={normalize(24)} viewBox="0 0 128 128">
-                  <Defs>
-                    <SvgLinearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                      <Stop offset="0" stopColor="#ef4444" />
-                      <Stop offset="1" stopColor="#dc2626" />
-                    </SvgLinearGradient>
-                  </Defs>
-                  <Path
-                    fill="url(#g)"
-                    d="M64 8c12 10 28 12 44 12v40c0 26-18 49-44 60C38 109 20 86 20 60V20c16 0 32-2 44-12z"
-                  />
-                  <Path
-                    fill="white"
-                    opacity="0.14"
-                    d="M64 14c9 8 22 10 35 11v33c0 22-15 41-35 50-20-9-35-28-35-50V25c13-1 26-3 35-11z"
-                  />
-                </Svg>
-              </View>
-            </View>
-            <View>
+         <View style={styles.header}>
             <Text style={styles.appName}>Kavach</Text>
             <Text style={styles.subtitle}>Safety Console</Text>
-            </View>
-         
         </View>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
         
-        {/* Header */}
-
-       
-
         {/* Stats Row */}
         <View style={styles.statsRow}>
-          <TouchableOpacity style={styles.statBox} onPress={() => navigation.navigate('Contacts')}>
+          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Contacts')}>
             <Text style={styles.statLabel}>Contacts</Text>
-            <Text style={styles.statValue}>{contactCount}</Text>
+            <Text style={styles.statValue}>{contactCount > 0 ? contactCount : '-'}</Text>
           </TouchableOpacity>
 
-          <View style={styles.statBox}>
+          <View style={styles.statCard}>
             <Text style={styles.statLabel}>Incidents</Text>
-            <Text style={styles.statValue}>{incidents.length}</Text>
+            <Text style={styles.statValue}>{incidents.length > 0 ? incidents.length : '-'}</Text>
           </View>
         </View>
 
-        {/* New Bluetooth Scan Section */}
+        {/* Scan Bluetooth Devices Card */}
         <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
-          <View style={styles.scanContent}>
+          <View>
             <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
             <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
           </View>
           <View style={styles.scanIconBox}>
-            <Text style={styles.scanIcon}>📡</Text>
+             {/* Using text emoji for now, can be replaced with Icon if available */}
+            <Text style={{fontSize: 22}}>📡</Text> 
           </View>
         </TouchableOpacity>
-        <Text style={styles.cardSubText}>
-          Hold <Text style={styles.bold}>5s</Text> • Mode Loud
-        </Text>
 
-        {/* SOS Button */}
-        <View style={styles.sosContainer}>
-          <TouchableOpacity style={styles.sosButton} onLongPress={handleSOS} delayLongPress={1000}>
-            <Text style={styles.sosIcon}>🚨</Text>
-            <Text style={styles.sosText}>SOS</Text>
-            <Text style={styles.sosSubText}>Press & hold</Text>
-          </TouchableOpacity>
-        </View>
-      {/* </View> */}
+        {/* Hero Card - Ready to Protect */}
+        <View style={styles.heroCard}>
+            <View style={styles.heroHeader}>
+                <View>
+                    <Text style={styles.heroTitle}>Ready to Protect</Text>
+                    <Text style={styles.heroSubtitle}>Hold <Text style={styles.boldWhite}>5s</Text> • Mode Loud</Text>
+                </View>
+                <TouchableOpacity style={styles.adjustBtn} onPress={openScanModal}>
+                    <Text style={styles.adjustText}>Adjust</Text>
+                </TouchableOpacity>
+            </View>
 
-      <View style={styles.lastIncidentCard}>
-        <Text style={styles.lastIncidentLabel}>Last Incident</Text>
-        {lastLoggedIncident ? (
-             <Text style={styles.lastIncidentValue}>{lastLoggedIncident.time} • {lastLoggedIncident.mode}</Text>
-        ) : (
-             <Text style={styles.lastIncidentValue}>No incidents recorded.</Text>
-        )}
-
-        <TouchableOpacity style={styles.viewLogBtn} onPress={() => setIsLogModalVisible(true)}>
-          <Text style={styles.viewLogText}>View Log</Text>
-        </TouchableOpacity>
-
-        {/* Ready to Protect */}
-        {/* <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Ready to Protect</Text>
-
-            <TouchableOpacity style={styles.adjustBtn}>
-              <Text style={styles.adjustText}>Adjust</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.cardSubText}>
-            Hold <Text style={styles.bold}>5s</Text> • Mode Loud
-          </Text>
-
-          {/* SOS Button */}
-          {/* <View style={styles.sosContainer}>
-            <TouchableOpacity style={styles.sosButton} onLongPress={handleSOS} delayLongPress={1000}>
-              <Text style={styles.sosIcon}>🚨</Text>
-              <Text style={styles.sosText}>SOS</Text>
-              <Text style={styles.sosSubText}>Press & hold</Text>
-            </TouchableOpacity>
-          </View> */}
+            <View style={styles.sosContainer}>
+                <TouchableOpacity 
+                    style={styles.sosButton} 
+                    onLongPress={handleSOS} 
+                    delayLongPress={5000}
+                    activeOpacity={0.8}
+                >
+                    <LinearGradient
+                        colors={['#2A2D36', '#1A1C22']}
+                        style={styles.sosGradient}
+                    >
+                        {/* Inner Glow/Ring effect could go here */}
+                        <Text style={styles.sosIcon}>🚨</Text>
+                        <Text style={styles.sosText}>SOS</Text>
+                        <Text style={styles.sosSubText}>Press & hold</Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </View>
         </View>
 
         {/* Last Incident */}
-        {/* <View style={styles.lastIncidentCard}>
-          <Text style={styles.lastIncidentLabel}>Last Incident</Text>
-          <Text style={styles.lastIncidentValue}>05/08/2025, 02:44:00 • Loud</Text>
+        <View style={styles.lastIncidentCard}>
+            <View>
+                <Text style={styles.lastIncidentLabel}>Last Incident</Text>
+                {lastLoggedIncident ? (
+                    <Text style={styles.lastIncidentValue}>{lastLoggedIncident.time} • {lastLoggedIncident.mode}</Text>
+                ) : (
+                    <Text style={styles.lastIncidentValue}>No incidents recorded.</Text>
+                )}
+            </View>
+            <TouchableOpacity style={styles.viewLogBtn} onPress={() => setIsLogModalVisible(true)}>
+                <Text style={styles.viewLogText}>View Log</Text>
+            </TouchableOpacity>
+        </View>
 
-          <TouchableOpacity style={styles.viewLogBtn}>
-            <Text style={styles.viewLogText}>View Log</Text>
-          </TouchableOpacity>
-        </View> */}
         </ScrollView>
       </View>
 
@@ -637,149 +599,187 @@ const styles = StyleSheet.create({
 
   header: {
     marginBottom: 20,
+    marginTop: 10,
+    // Removed row/alignItems/gap to stack vertically
   },
 
+
   appName: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: 'white',
+    marginBottom: 4,
   },
 
   subtitle: {
-    color: '#9A9FA5',
-    // marginTop: 4,
+    color: '#8E9196',
+    fontSize: 15,
   },
 
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    gap: 14,
+    marginBottom: 24,
   },
 
-  statBox: {
-    width: '47%',
-    backgroundColor: '#16171D',
-    padding: 18,
-    borderRadius: 14,
-  },
-
-  statLabel: { color: '#B0B5BA', fontSize: 14 },
-  statValue: { color: 'white', fontSize: 26, fontWeight: '700', marginTop: 8 },
-
-  // Scan Card Styles
-  scanCard: {
-    backgroundColor: '#25262C',
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#3A3B40',
-  },
-  scanContent: {
+  statCard: {
     flex: 1,
-  },
-  scanTitle: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  scanSubtitle: {
-    color: '#9A9FA5',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  scanIconBox: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#3A3B40',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scanIcon: {
-    fontSize: 20,
-  },
-
-  card: {
     backgroundColor: '#16171D',
     padding: 20,
-    borderRadius: 20,
-    marginBottom: 20,
+    borderRadius: 16,
+    // borderWidth: 1,
+    // borderColor: '#25262C', // Screenshot looks cleaner without border or very subtle
+    height: 100,
+    justifyContent: 'space-between', 
+    alignItems: 'flex-start', // Stack label and value
   },
 
-  cardHeader: {
+  statLabel: { color: '#8E9196', fontSize: 14, fontWeight: '500' },
+  statValue: { color: 'white', fontSize: 32, fontWeight: '700' },
+
+  // Scan Card
+  scanCard: {
+    backgroundColor: '#16171D',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#25262C',
+  },
+  scanTitle: { color: 'white', fontSize: 16, fontWeight: '700' },
+  scanSubtitle: { color: '#9A9FA5', fontSize: 13, marginTop: 2 },
+  scanIconBox: {
+      width: 44,
+      height: 44,
+      backgroundColor: '#25262C',
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
   },
 
-  cardTitle: { fontSize: 18, fontWeight: '700', color: 'white' },
+  // Hero Card
+  heroCard: {
+      backgroundColor: '#16171D',
+      borderRadius: 24,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: '#25262C', // Subtle border
+      marginBottom: 20,
+      minHeight: 340,
+      justifyContent: 'space-between',
+  },
+  heroHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+  },
+  heroTitle: {
+      color: 'white',
+      fontSize: 18,
+      fontWeight: '700',
+  },
 
+  heroSubtitle: {
+      color: '#9A9FA5',
+      fontSize: 13,
+      marginTop: 4,
+  },
+  boldWhite: {
+      color: 'white',
+      fontWeight: '700',
+  },
   adjustBtn: {
     borderWidth: 1,
     borderColor: '#3A3B40',
-    borderRadius: 14,
+    borderRadius: 20,
     paddingVertical: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
   },
-
-  adjustText: { color: '#B0B5BA', fontSize: 14 },
-
-  cardSubText: { color: '#9A9FA5', marginTop: 8 },
-
-  bold: { color: '#FFFFFF', fontWeight: '700' },
+  adjustText: { 
+      color: '#B0B5BA', 
+      fontSize: 13,
+      fontWeight: '500',
+  },
 
   sosContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
     marginTop: 20,
+    marginBottom: 10,
   },
 
   sosButton: {
-    width: 170,
-    height: 170,
-    borderRadius: 170,
-    backgroundColor: '#25262C',
+    width: 200,
+    height: 200,
+    borderRadius: 100, // Circle
+    // We'll use the gradient for the look
+    padding: 6, // space for outer ring if needed
+    backgroundColor: '#2A2B32', // Outer ring placeholder
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 8,
-    borderColor: '#53363D',
+    
+    // Shadow/Glow
+    shadowColor: "#000",
+    shadowOffset: {
+        width: 0,
+        height: 10,
+    },
+    shadowOpacity: 0.51,
+    shadowRadius: 13.16,
+    elevation: 20,
+  },
+  
+  sosGradient: {
+     width: '100%',
+     height: '100%',
+     borderRadius: 100,
+     justifyContent: 'center',
+     alignItems: 'center',
+     borderWidth: 4,
+     borderColor: '#4A2A2F', // reddish tint border
   },
 
-  sosIcon: { fontSize: 32, color: 'white' },
+  sosIcon: { fontSize: 42, color: 'white', marginBottom: 4 },
 
   sosText: {
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: '700',
     color: 'white',
-    marginTop: 6,
   },
 
-  sosSubText: { color: '#9A9FA5', marginTop: 4 },
+  sosSubText: { color: '#9A9FA5', marginTop: 4, fontSize: 12 },
 
   lastIncidentCard: {
     backgroundColor: '#16171D',
-    padding: 18,
+    padding: 16,
     borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#25262C',
     marginBottom: 20,
   },
 
-  lastIncidentLabel: { color: 'white', fontSize: 16, fontWeight: '600' },
+  lastIncidentLabel: { color: 'white', fontSize: 14, fontWeight: '600', marginBottom: 4 },
 
-  lastIncidentValue: { color: '#9A9FA5', marginTop: 6 },
+  lastIncidentValue: { color: '#9A9FA5', fontSize: 13 },
 
   viewLogBtn: {
-    alignSelf: 'flex-end',
-    borderColor: '#3A3B40',
+    backgroundColor: '#1E1F25',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    marginTop: 12,
+    borderColor: '#3A3B40',
   },
 
-  viewLogText: { color: '#B0B5BA', fontSize: 14 },
+  viewLogText: { color: '#B0B5BA', fontSize: 13, fontWeight: '500' },
 
   // Modal Styles
   modalContainer: {

@@ -7,11 +7,12 @@ import {
   Switch,
   ScrollView,
 } from 'react-native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../redux/slices/authSlice';
 
 const SettingsScreen = () => {
   const dispatch = useDispatch();
+  const user = useSelector(state => state.auth.user);
   const [alarmMode, setAlarmMode] = useState('Loud');
   const [holdTime, setHoldTime] = useState(5);
   const [autoText, setAutoText] = useState(false);
@@ -29,8 +30,15 @@ const SettingsScreen = () => {
         <View style={styles.settingsBox}>
           <Text style={styles.title}>⚙️ Account details</Text>
 
-          {/* Alarm Mode */}
-        
+          <View style={styles.autoTextBox}>
+            <Text style={styles.autoTitle}>Email Profile</Text>
+            <Text style={styles.autoDesc}>{user?.email || 'No email found'}</Text>
+          </View>
+          
+          <View style={[styles.autoTextBox, { marginTop: 10 }]}>
+            <Text style={styles.autoTitle}>User Name</Text>
+             <Text style={styles.autoDesc}>{user?.name || 'Kavach User'}</Text>
+          </View>
         </View>
       </ScrollView>
       

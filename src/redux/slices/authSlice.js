@@ -3,6 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   isAuthenticated: false,
   user: null,
+  token: null,
   loading: false,
   error: null,
 };
@@ -18,7 +19,11 @@ const authSlice = createSlice({
     loginSuccess: (state, action) => {
       state.loading = false;
       state.isAuthenticated = true;
-      state.user = action.payload;
+      // The API returns { token, user: {...} }
+      // We want to store them separately
+      const { user, token } = action.payload || {};
+      state.user = user || action.payload; // Fallback if no 'user' key
+      state.token = token || state.token;
     },
     loginFailure: (state, action) => {
       state.loading = false;
@@ -27,6 +32,7 @@ const authSlice = createSlice({
     logout: (state) => {
       state.isAuthenticated = false;
       state.user = null;
+      state.token = null;
     },
     signupRequest: (state) => {
       state.loading = true;
@@ -35,7 +41,9 @@ const authSlice = createSlice({
     signupSuccess: (state, action) => {
       state.loading = false;
       state.isAuthenticated = true;
-      state.user = action.payload;
+      const { user, token } = action.payload || {};
+      state.user = user || action.payload;
+      state.token = token || state.token;
     },
     signupFailure: (state, action) => {
       state.loading = false;

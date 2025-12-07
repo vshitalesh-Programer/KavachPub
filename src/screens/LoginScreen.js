@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ToastAndroid
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
@@ -42,11 +43,15 @@ const LoginScreen = ({navigation}) => {
     }
   }, [isAuthenticated, navigation]);
 
-  // useEffect(() => {
-  //   if (error) {
-  //     Alert.alert('Error', error);
-  //   }
-  // }, [error]);
+  useEffect(() => {
+    if (error) {
+       if (Platform.OS === 'android') {
+        ToastAndroid.show(error, ToastAndroid.SHORT);
+      } else {
+         Alert.alert('Error', error);
+      }
+    }
+  }, [error]);
 
   const handleLogin = () => {
     if (isLogin) {
@@ -212,8 +217,12 @@ const LoginScreen = ({navigation}) => {
               />
 
               {/* Login Button */}
-              <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                <Text style={styles.loginButtonText}>{isLogin ? 'Log In' : 'Sign Up'}</Text>
+              <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
+                 {loading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                 ) : (
+                    <Text style={styles.loginButtonText}>{isLogin ? 'Log In' : 'Sign Up'}</Text>
+                 )}
               </TouchableOpacity>
 
               {/* Divider */}
