@@ -10,6 +10,7 @@ import Geolocation from 'react-native-geolocation-service';
 import DeviceInfo from 'react-native-device-info';
 import { useDispatch, useSelector } from 'react-redux';
 import { addIncident } from '../redux/slices/incidentSlice';
+import AppFonts from '../utils/AppFonts';
 
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
@@ -587,76 +588,77 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingHorizontal: AppFonts.nW(20),
+    paddingTop: AppFonts.nH(40),
   },
   gradient: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: AppFonts.nH(40),
   },
 
   header: {
-    marginBottom: 20,
-    marginTop: 10,
+    marginBottom: AppFonts.nH(20),
+    marginTop: AppFonts.nH(10),
     // Removed row/alignItems/gap to stack vertically
   },
 
 
   appName: {
-    fontSize: 28,
+    fontSize: AppFonts.n(20),
     fontWeight: '700',
     color: 'white',
-    marginBottom: 4,
+    marginBottom: AppFonts.nH(4),
   },
 
   subtitle: {
     color: '#8E9196',
-    fontSize: 15,
+    fontSize: AppFonts.n(11),
   },
 
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 14,
-    marginBottom: 24,
+    gap: AppFonts.nW(14),
+    marginBottom: AppFonts.nH(18),
   },
 
   statCard: {
     flex: 1,
     backgroundColor: '#16171D',
-    padding: 20,
-    borderRadius: 16,
-    // borderWidth: 1,
-    // borderColor: '#25262C', // Screenshot looks cleaner without border or very subtle
-    height: 100,
+    padding: AppFonts.n(10),
+    borderRadius: AppFonts.n(16),
+    // height: AppFonts.nH(80),
+    paddingHorizontal: AppFonts.nW(14),
     justifyContent: 'space-between', 
     alignItems: 'flex-start', // Stack label and value
+    borderWidth: AppFonts.n(1),
+    borderColor: '#25262C',
   },
 
-  statLabel: { color: '#8E9196', fontSize: 14, fontWeight: '500' },
-  statValue: { color: 'white', fontSize: 32, fontWeight: '700' },
+  statLabel: { color: '#8E9196', fontSize: AppFonts.n(10), fontWeight: '500' },
+  statValue: { color: 'white', fontSize: AppFonts.n(20), fontWeight: '700' },
 
   // Scan Card
   scanCard: {
     backgroundColor: '#16171D',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
+    borderRadius: AppFonts.n(16),
+    padding: AppFonts.n(12),
+    marginBottom: AppFonts.nH(20),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: AppFonts.n(1),
     borderColor: '#25262C',
   },
-  scanTitle: { color: 'white', fontSize: 16, fontWeight: '700' },
-  scanSubtitle: { color: '#9A9FA5', fontSize: 13, marginTop: 2 },
+  scanTitle: { color: 'white', fontSize: AppFonts.n(14), fontWeight: '700' },
+  scanSubtitle: { color: '#9A9FA5', fontSize: AppFonts.n(11), marginTop: AppFonts.nH(2) },
   scanIconBox: {
-      width: 44,
-      height: 44,
+      width: AppFonts.nW(44),
+      height: AppFonts.nH(44),
       backgroundColor: '#25262C',
-      borderRadius: 12,
+      borderRadius: AppFonts.n(12),
       justifyContent: 'center',
       alignItems: 'center',
   },
@@ -664,12 +666,11 @@ const styles = StyleSheet.create({
   // Hero Card
   heroCard: {
       backgroundColor: '#16171D',
-      borderRadius: 24,
-      padding: 24,
-      borderWidth: 1,
+      borderRadius: AppFonts.n(24),
+      padding: AppFonts.n(18),
+      borderWidth: AppFonts.n(1),
       borderColor: '#25262C', // Subtle border
-      marginBottom: 20,
-      minHeight: 340,
+      marginBottom: AppFonts.nH(20),
       justifyContent: 'space-between',
   },
   heroHeader: {
@@ -679,29 +680,29 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
       color: 'white',
-      fontSize: 18,
+      fontSize: AppFonts.n(16),
       fontWeight: '700',
   },
 
   heroSubtitle: {
       color: '#9A9FA5',
-      fontSize: 13,
-      marginTop: 4,
+      fontSize: AppFonts.n(11),
+      marginTop: AppFonts.nH(4),
   },
   boldWhite: {
       color: 'white',
       fontWeight: '700',
   },
   adjustBtn: {
-    borderWidth: 1,
+    borderWidth: AppFonts.n(1),
     borderColor: '#3A3B40',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
+    borderRadius: AppFonts.n(20),
+    paddingVertical: AppFonts.nH(6),
+    paddingHorizontal: AppFonts.nW(16),
   },
   adjustText: { 
       color: '#B0B5BA', 
-      fontSize: 13,
+      fontSize: AppFonts.n(11),
       fontWeight: '500',
   },
 
@@ -737,49 +738,49 @@ const styles = StyleSheet.create({
   sosGradient: {
      width: '100%',
      height: '100%',
-     borderRadius: 100,
+     borderRadius: AppFonts.n(100),
      justifyContent: 'center',
      alignItems: 'center',
-     borderWidth: 4,
+     borderWidth: AppFonts.n(4),
      borderColor: '#4A2A2F', // reddish tint border
   },
 
-  sosIcon: { fontSize: 42, color: 'white', marginBottom: 4 },
+  sosIcon: { fontSize: AppFonts.n(32), color: 'white', marginBottom: AppFonts.nH(4) },
 
   sosText: {
-    fontSize: 32,
+    fontSize: AppFonts.n(26),
     fontWeight: '700',
     color: 'white',
   },
 
-  sosSubText: { color: '#9A9FA5', marginTop: 4, fontSize: 12 },
+  sosSubText: { color: '#9A9FA5', marginTop: AppFonts.nH(4), fontSize: AppFonts.n(10) },
 
   lastIncidentCard: {
     backgroundColor: '#16171D',
-    padding: 16,
-    borderRadius: 16,
+    padding: AppFonts.n(16),
+    borderRadius: AppFonts.n(16),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: AppFonts.n(1),
     borderColor: '#25262C',
-    marginBottom: 20,
+    marginBottom: AppFonts.nH(20),
   },
 
-  lastIncidentLabel: { color: 'white', fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  lastIncidentLabel: { color: 'white', fontSize: AppFonts.n(12), fontWeight: '600', marginBottom: AppFonts.nH(4) },
 
-  lastIncidentValue: { color: '#9A9FA5', fontSize: 13 },
+  lastIncidentValue: { color: '#9A9FA5', fontSize: AppFonts.n(11) },
 
   viewLogBtn: {
     backgroundColor: '#1E1F25',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderWidth: 1,
+    borderRadius: AppFonts.n(12),
+    paddingVertical: AppFonts.nH(8),
+    paddingHorizontal: AppFonts.nW(16),
+    borderWidth: AppFonts.n(1),
     borderColor: '#3A3B40',
   },
 
-  viewLogText: { color: '#B0B5BA', fontSize: 13, fontWeight: '500' },
+  viewLogText: { color: '#B0B5BA', fontSize: AppFonts.n(11), fontWeight: '500' },
 
   // Modal Styles
   modalContainer: {
@@ -789,16 +790,16 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#16171D',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: AppFonts.n(20),
+    borderTopRightRadius: AppFonts.n(20),
+    padding: AppFonts.n(20),
     height: '60%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: AppFonts.nH(15),
   },
   modalHeaderRight: {
     flexDirection: 'row',
@@ -807,7 +808,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: 'white',
-    fontSize: 20,
+    fontSize: AppFonts.n(16),
     fontWeight: '700',
   },
   scanIndicator: {
@@ -815,15 +816,15 @@ const styles = StyleSheet.create({
   },
   reconnectButton: {
     backgroundColor: '#DC2626',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingHorizontal: AppFonts.nW(12),
+    paddingVertical: AppFonts.nH(6),
+    borderRadius: AppFonts.n(8),
+    borderWidth: AppFonts.n(1),
     borderColor: '#DC2626',
   },
   reconnectButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: AppFonts.n(10),
     fontWeight: '600',
   },
   listContent: {

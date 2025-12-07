@@ -5,6 +5,9 @@ import { setContacts as setContactsAction } from '../redux/slices/contactSlice';
 import LinearGradient from 'react-native-linear-gradient';
 import Contacts from 'react-native-contacts';
 import ApiService from '../services/ApiService';
+import Fonts from '../utils/AppFonts';
+
+const { n, nH, nW } = Fonts;
 
 
 const ContactsScreen = () => {
@@ -98,12 +101,7 @@ const ContactsScreen = () => {
           <Text style={styles.contactDetail}>{item.detail}</Text>
         </View>
         <View style={styles.tagRow}>
-          {item.autoCall && <Text style={[styles.tag, styles.tagPrimary]}>Auto-call</Text>}
-          {item.autoText && <Text style={[styles.tag, styles.tagSecondary]}>Auto-text</Text>}
-        </View>
-      </View>
-
-      <View style={styles.cardFooter}>
+        <View style={styles.cardFooter}>
         {/* <View style={styles.footerPill}>
           <Text style={styles.footerPillLabel}>Auto-call</Text>
           <Text style={styles.footerPillValue}>{item.autoCall ? 'Enabled' : 'Not set'}</Text>
@@ -113,6 +111,10 @@ const ContactsScreen = () => {
           <Text style={styles.footerPillValue}>{item.autoText ? 'Enabled' : 'Not set'}</Text>
         </View>
       </View>
+        </View>
+      </View>
+
+     
     </View>
   );
 
@@ -187,14 +189,14 @@ const ContactsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 20,
+    paddingTop: nH(40),
+    paddingHorizontal: nW(20),
   },
   gradient: {
     flex: 1,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: nH(20),
   },
   title: {
     fontSize: 28,
@@ -212,18 +214,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: nH(100),
   },
   syncCard: {
     backgroundColor: '#16171D',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
+    borderRadius: n(14),
+    padding: n(16),
+    borderWidth: n(1),
     borderColor: '#25262C',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
+    gap: nW(12),
+    marginBottom: nH(12),
   },
   syncTitle: {
     color: '#FFFFFF',
@@ -243,10 +245,10 @@ const styles = StyleSheet.create({
   },
   syncButton: {
     backgroundColor: '#DC2626',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: nH(10),
+    paddingHorizontal: nW(14),
+    borderRadius: n(12),
+    borderWidth: n(1),
     borderColor: '#DC2626',
   },
   syncButtonText: {
@@ -258,8 +260,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 12,
+    marginTop: nH(24),
+    marginBottom: nH(12),
   },
   sectionHeader: {
     color: '#9CA3AF',
@@ -268,9 +270,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
     backgroundColor: '#1E1F25',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingVertical: nH(4),
+    paddingHorizontal: nW(12),
+    borderRadius: n(12),
     overflow: 'hidden', // iOS
   },
   addButtonSmall: {
@@ -284,23 +286,25 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#16171D',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 1,
+    borderRadius: n(16),
+    paddinHorizontal: nW(16),
+    padding: n(16),
+    marginBottom: nH(20),
+    borderWidth: n(1),
     borderColor: '#25262C',
+    paddingBottom: nH(8),
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    // marginBottom: 12,
   },
   contactName: {
-    fontSize: 18,
+    fontSize: n(12),
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: nH(4),
   },
   contactDetail: {
     fontSize: 12,
@@ -308,14 +312,14 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: nW(8),
   },
   actionBtn: {
-    borderWidth: 1,
+    borderWidth: n(1),
     borderColor: '#3A3B40',
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    borderRadius: n(8),
+    paddingVertical: nH(4),
+    paddingHorizontal: nW(10),
   },
   actionBtnText: {
     color: '#B0B5BA',
@@ -323,12 +327,12 @@ const styles = StyleSheet.create({
   },
   tagRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: nW(6),
   },
   tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: nW(8),
+    paddingVertical: nH(3),
+    borderRadius: n(10),
     fontSize: 10,
     fontWeight: '700',
     overflow: 'hidden',
@@ -343,24 +347,24 @@ const styles = StyleSheet.create({
   },
   cardFooter: {
     flexDirection: 'row',
-    gap: 10,
+    // gap: 10,
   },
   footerPill: {
-    flex: 1,
     backgroundColor: '#0E0F14',
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: n(12),
+    borderWidth: n(1),
     borderColor: '#25262C',
-    padding: 10,
+    padding: n(6),
+    marginTop: -nH(6),
   },
   footerPillLabel: {
     color: '#9CA3AF',
-    fontSize: 11,
+    fontSize: n(8),
     marginBottom: 4,
   },
   footerPillValue: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: n(10),
     fontWeight: '600',
   },
 });

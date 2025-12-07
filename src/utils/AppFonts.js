@@ -41,3 +41,12 @@ export function moderateScale(size, factor = 0.5) {
 export function moderateVerticalScale(size, factor = 0.5) {
   return size + (verticalScale(size) - size) * factor;
 }
+export default {
+  n: normalize,
+  nW: normalizeWidth,
+  nH: normalizeHeight,
+  hs: horizontalscale,
+  vs: verticalScale,
+  ms: moderateScale,
+  mvs: moderateVerticalScale,
+};
