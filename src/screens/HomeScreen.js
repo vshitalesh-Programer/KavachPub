@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+// import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
 import BleManager from 'react-native-ble-manager';
@@ -304,70 +306,82 @@ const HomeScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#2b1216', '#0c0b11']}
+      start={{x: 0, y: 0}}
+      end={{x: 0, y: 1}}
+      angle={190}
+      useAngle={true}
+      style={styles.gradient}>
+      <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.appName}>Kavach</Text>
-        <Text style={styles.subtitle}>Safety Console</Text>
-      </View>
-
-      {/* Stats Row */}
-      <View style={styles.statsRow}>
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Contacts</Text>
-          <Text style={styles.statValue}>-</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.appName}>Kavach</Text>
+          <Text style={styles.subtitle}>Safety Console</Text>
         </View>
 
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Incidents</Text>
-          <Text style={styles.statValue}>-</Text>
-        </View>
-      </View>
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Contacts</Text>
+            <Text style={styles.statValue}>-</Text>
+          </View>
 
-          {/* New Bluetooth Scan Section */}
-          <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
-        <View style={styles.scanContent}>
-          <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
-          <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
-        </View>
-        <View style={styles.scanIconBox}>
-          <Text style={styles.scanIcon}>📡</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* Ready to Protect */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Ready to Protect</Text>
-
-          <TouchableOpacity style={styles.adjustBtn}>
-            <Text style={styles.adjustText}>Adjust</Text>
-          </TouchableOpacity>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Incidents</Text>
+            <Text style={styles.statValue}>-</Text>
+          </View>
         </View>
 
-        <Text style={styles.cardSubText}>
-          Hold <Text style={styles.bold}>5s</Text> • Mode Loud
-        </Text>
-
-        {/* SOS Button */}
-        <View style={styles.sosContainer}>
-          <TouchableOpacity style={styles.sosButton} onLongPress={handleSOS} delayLongPress={1000}>
-            <Text style={styles.sosIcon}>🚨</Text>
-            <Text style={styles.sosText}>SOS</Text>
-            <Text style={styles.sosSubText}>Press & hold</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Last Incident */}
-      <View style={styles.lastIncidentCard}>
-        <Text style={styles.lastIncidentLabel}>Last Incident</Text>
-        <Text style={styles.lastIncidentValue}>05/08/2025, 02:44:00 • Loud</Text>
-
-        <TouchableOpacity style={styles.viewLogBtn}>
-          <Text style={styles.viewLogText}>View Log</Text>
+        {/* New Bluetooth Scan Section */}
+        <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
+          <View style={styles.scanContent}>
+            <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
+            <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
+          </View>
+          <View style={styles.scanIconBox}>
+            <Text style={styles.scanIcon}>📡</Text>
+          </View>
         </TouchableOpacity>
+
+        {/* Ready to Protect */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Ready to Protect</Text>
+
+            <TouchableOpacity style={styles.adjustBtn}>
+              <Text style={styles.adjustText}>Adjust</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.cardSubText}>
+            Hold <Text style={styles.bold}>5s</Text> • Mode Loud
+          </Text>
+
+          {/* SOS Button */}
+          <View style={styles.sosContainer}>
+            <TouchableOpacity style={styles.sosButton} onLongPress={handleSOS} delayLongPress={1000}>
+              <Text style={styles.sosIcon}>🚨</Text>
+              <Text style={styles.sosText}>SOS</Text>
+              <Text style={styles.sosSubText}>Press & hold</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Last Incident */}
+        <View style={styles.lastIncidentCard}>
+          <Text style={styles.lastIncidentLabel}>Last Incident</Text>
+          <Text style={styles.lastIncidentValue}>05/08/2025, 02:44:00 • Loud</Text>
+
+          <TouchableOpacity style={styles.viewLogBtn}>
+            <Text style={styles.viewLogText}>View Log</Text>
+          </TouchableOpacity>
+        </View>
+        </ScrollView>
       </View>
 
       {/* Scan Modal */}
@@ -453,7 +467,7 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-    </View>
+    </LinearGradient>
   );
 };
 
@@ -461,9 +475,14 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E0F14',
     paddingHorizontal: 20,
     paddingTop: 60,
+  },
+  gradient: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
 
   header: {

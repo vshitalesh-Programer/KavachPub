@@ -1,48 +1,22 @@
 import React from 'react';
-import { View, Text, StyleSheet, SectionList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SectionList, TouchableOpacity, ActivityIndicator, PermissionsAndroid, Platform } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import Contacts from 'react-native-contacts';
 import ApiService from '../services/ApiService';
 
-const MOCK_CONTACTS = [
-  {
-    title: 'Emergency',
-    data: [
-      { id: '1', name: 'Local Emergency', detail: 'Emergency • United States / Canada • 911', autoCall: true, autoText: false },
-    ],
-  },
-  {
-    title: 'Family',
-    data: [
-      { id: '2', name: 'Mom', detail: 'Family • +1 (408) 555-0110', autoCall: false, autoText: false },
-      { id: '3', name: 'Dad', detail: 'Family • +1 (408) 555-0142', autoCall: false, autoText: false },
-    ],
-  },
-  {
-    title: 'Friend',
-    data: [
-      { id: '4', name: 'Priva (BFF)', detail: 'Friend • +1 (408) 555-0199', autoCall: false, autoText: false },
-    ],
-  },
-];
 
 const ContactsScreen = () => {
   const [contacts, setContacts] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    loadContacts();
-  }, []);
+  const [loading, setLoading] = React.useState(false);
+  const [permissionStatus, setPermissionStatus] = React.useState('idle'); // idle | granted | denied | requesting
 
   const loadContacts = async () => {
     try {
       setLoading(true);
-      const data = await ApiService.getContacts();
-      const apiContacts = Array.isArray(data?.contacts)
-        ? data.contacts
-        : Array.isArray(data)
-          ? data
-          : [];
-      const formattedContacts = formatContacts(apiContacts);
-      setContacts(formattedContacts);
+      // Fetch device contacts (no photos for performance)
+      const deviceContacts = await Contacts.getAllWithoutPhotos();
+      const formatted = formatDeviceContacts(deviceContacts);
+      setContacts(formatted);
     } catch (error) {
       console.error('Failed to load contacts', error?.message || error);
       setContacts([]);
@@ -51,38 +25,63 @@ const ContactsScreen = () => {
     }
   };
 
-  const formatContacts = (apiContacts) => {
-    // Group by relation like MOCK_CONTACTS
-    const groups = {
-      Emergency: [],
-      Family: [],
-      Friend: []
-    };
-
-    apiContacts.forEach(contact => {
-      if (groups[contact.relation]) {
-        groups[contact.relation].push({
-           id: contact.id,
-           name: contact.name,
-           detail: `${contact.relation} • ${contact.phone}`,
-           autoCall: contact.autoCall,
-           autoText: contact.autoText
-        });
+  const requestContactsPermission = async () => {
+    try {
+      setPermissionStatus('requesting');
+      if (Platform.OS === 'android') {
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+          {
+            title: 'Contacts Permission',
+            message: 'Kavach needs access to your contacts to sync and select emergency contacts.',
+            buttonPositive: 'Allow',
+          },
+        );
+        if (result === PermissionsAndroid.RESULTS.GRANTED) {
+          setPermissionStatus('granted');
+          await loadContacts();
+        } else {
+          setPermissionStatus('denied');
+          setContacts([]);
+        }
+      } else {
+        // iOS: assume granted for now; integrate Contacts framework if needed
+        setPermissionStatus('granted');
+        await loadContacts();
       }
-    });
+    } catch (error) {
+      console.error('Permission request failed', error);
+      setPermissionStatus('denied');
+      setContacts([]);
+    } finally {
+      // loading is managed inside loadContacts; leave it false otherwise
+    }
+  };
 
-    return Object.keys(groups).map(key => ({
-      title: key,
-      data: groups[key]
-    })).filter(section => section.data.length > 0);
+  const formatDeviceContacts = (deviceContacts) => {
+    // Put all synced contacts under one section "Synced"
+    const mapped = (deviceContacts || [])
+      .map(c => {
+        const name = c.displayName || [c.givenName, c.familyName].filter(Boolean).join(' ').trim() || 'Unknown';
+        const phone = Array.isArray(c.phoneNumbers) && c.phoneNumbers.length > 0
+          ? c.phoneNumbers[0].number
+          : 'No phone';
+        return {
+          id: c.recordID || `${name}-${phone}`,
+          name,
+          detail: phone,
+          autoCall: false,
+          autoText: false,
+        };
+      })
+      .filter(item => !!item.id && !!item.name && !!item.detail);
+
+    return mapped.length > 0 ? [{ title: 'Synced', data: mapped }] : [];
   };
 
   const renderSectionHeader = ({ section: { title } }) => (
     <View style={styles.sectionHeaderContainer}>
       <Text style={styles.sectionHeader}>{title}</Text>
-      <TouchableOpacity style={styles.addButtonSmall}>
-        <Text style={styles.addButtonLabel}>+ Add</Text>
-      </TouchableOpacity>
     </View>
   );
 
@@ -93,37 +92,33 @@ const ContactsScreen = () => {
           <Text style={styles.contactName}>{item.name}</Text>
           <Text style={styles.contactDetail}>{item.detail}</Text>
         </View>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionBtn}>
-            <Text style={styles.actionBtnText}>✎ Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}>
-            <Text style={styles.actionBtnText}>× Remove</Text>
-          </TouchableOpacity>
+        <View style={styles.tagRow}>
+          {item.autoCall && <Text style={[styles.tag, styles.tagPrimary]}>Auto-call</Text>}
+          {item.autoText && <Text style={[styles.tag, styles.tagSecondary]}>Auto-text</Text>}
         </View>
       </View>
 
-      <View style={styles.settingsRow}>
-        <Text style={styles.settingLabel}>Auto-call on trigger</Text>
-        <View style={[styles.settingBadge, item.autoCall && styles.activeBadge]}>
-          <Text style={[styles.settingText, item.autoCall && styles.activeText]}>
-            {item.autoCall ? 'Auto-call ✓' : 'Set as Auto-call'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.settingsRow}>
-        <Text style={styles.settingLabel}>Auto-text on trigger</Text>
-        <View style={styles.settingBadge}>
-          <Text style={styles.settingText}>
-            {item.autoText ? 'Yes' : 'No'}
-          </Text>
+      <View style={styles.cardFooter}>
+        {/* <View style={styles.footerPill}>
+          <Text style={styles.footerPillLabel}>Auto-call</Text>
+          <Text style={styles.footerPillValue}>{item.autoCall ? 'Enabled' : 'Not set'}</Text>
+        </View> */}
+        <View style={styles.footerPill}>
+          <Text style={styles.footerPillLabel}>Auto-text</Text>
+          <Text style={styles.footerPillValue}>{item.autoText ? 'Enabled' : 'Not set'}</Text>
         </View>
       </View>
     </View>
   );
 
   return (
+    <LinearGradient
+      colors={['#2b1216', '#0c0b11']}
+      start={{x: 0, y: 0}}
+      end={{x: 0, y: 1}}
+      angle={190}
+      useAngle={true}
+      style={styles.gradient}>
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Contacts</Text>
@@ -132,11 +127,37 @@ const ContactsScreen = () => {
         </Text>
       </View>
 
-      {loading ? (
+      {/* Sync card */}
+      <View style={styles.syncCard}>
+        <View style={{flex: 1}}>
+          <Text style={styles.syncTitle}>Sync phone contacts</Text>
+          <Text style={styles.syncSubtitle}>
+            Grant contacts permission to import your phone contacts and pick Auto-call numbers.
+          </Text>
+          {permissionStatus === 'denied' && (
+            <Text style={styles.syncWarning}>Permission denied. Please allow access to sync contacts.</Text>
+          )}
+        </View>
+        <TouchableOpacity
+          style={styles.syncButton}
+          onPress={requestContactsPermission}>
+          <Text style={styles.syncButtonText}>
+            {permissionStatus === 'granted' ? 'Resync' : 'Allow & Sync'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading || permissionStatus === 'requesting' ? (
         <React.Fragment>
-             <ActivityIndicator size="large" color="#E5484D" style={{marginTop: 50}} />
-             <Text style={{color: '#9CA3AF', textAlign: 'center', marginTop: 10}}>Loading Contacts...</Text>
+          <ActivityIndicator size="large" color="#E5484D" style={{marginTop: 50}} />
+          <Text style={{color: '#9CA3AF', textAlign: 'center', marginTop: 10}}>
+            {permissionStatus === 'requesting' ? 'Requesting permission...' : 'Loading Contacts...'}
+          </Text>
         </React.Fragment>
+      ) : permissionStatus !== 'granted' ? (
+        <Text style={{color: '#9CA3AF', textAlign: 'center', marginTop: 40}}>
+          Allow contacts permission to view and manage your synced contacts.
+        </Text>
       ) : (
         <SectionList
           sections={contacts}
@@ -154,15 +175,18 @@ const ContactsScreen = () => {
         />
       )}
     </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E0F14',
     paddingTop: 60,
     paddingHorizontal: 20,
+  },
+  gradient: {
+    flex: 1,
   },
   header: {
     marginBottom: 20,
@@ -184,6 +208,46 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 100,
+  },
+  syncCard: {
+    backgroundColor: '#16171D',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#25262C',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  syncTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  syncSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  syncWarning: {
+    color: '#E5484D',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  syncButton: {
+    backgroundColor: '#DC2626',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DC2626',
+  },
+  syncButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   sectionHeaderContainer: {
     flexDirection: 'row',
@@ -225,7 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   contactName: {
     fontSize: 18,
@@ -252,35 +316,47 @@ const styles = StyleSheet.create({
     color: '#B0B5BA',
     fontSize: 12,
   },
-  settingsRow: {
+  tagRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
+    gap: 6,
   },
-  settingLabel: {
-    color: '#B0B5BA',
-    fontSize: 13,
-    width: 140,
+  tag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    fontSize: 10,
+    fontWeight: '700',
+    overflow: 'hidden',
   },
-  settingBadge: {
-    backgroundColor: '#0E0F14',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#3A3B40',
-  },
-  settingText: {
-    color: '#B0B5BA',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  activeBadge: {
-    backgroundColor: '#E5484D', // Reddish accent
-    borderColor: '#E5484D',
-  },
-  activeText: {
+  tagPrimary: {
+    backgroundColor: '#E5484D',
     color: '#FFFFFF',
+  },
+  tagSecondary: {
+    backgroundColor: '#1F2937',
+    color: '#E5E7EB',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  footerPill: {
+    flex: 1,
+    backgroundColor: '#0E0F14',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#25262C',
+    padding: 10,
+  },
+  footerPillLabel: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  footerPillValue: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 

@@ -43,7 +43,7 @@ function App() {
         <AuthSync>
           <GestureHandlerRootView style={{flex: 1}}>
             <SafeAreaProvider>
-              <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+              <StatusBar barStyle="light-content" />
               <AppNavigator />
             </SafeAreaProvider>
           </GestureHandlerRootView>
