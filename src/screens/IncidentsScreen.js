@@ -64,7 +64,7 @@ const IncidentsScreen = () => {
             {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
           </Text>
           {item.ip && (
-            <Text style={[styles.locationValue, { marginTop: 4, fontSize: 12, color: '#9A9FA5' }]}>
+            <Text style={[styles.locationValue, { marginTop: 4, fontSize: 12, color: '#ffffff' }]}>
               IP: {item.ip}
             </Text>
           )}
@@ -141,11 +141,11 @@ const IncidentsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E0F14', // Matches HomeScreen
+    backgroundColor: '#68778f', // Matches HomeScreen
     paddingTop: 60,
-    paddingHorizontal: 20,
   },
   header: {
+    marginHorizontal: 20,
     marginBottom: 20,
   },
   title: {
@@ -156,36 +156,46 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#9A9FA5',
+    color: '#ffffff',
   },
   map: {
     height: 200,
     borderRadius: 16,
     marginBottom: 20,
     overflow: 'hidden',
+    marginHorizontal: 20,
   },
   mapPlaceholder: {
     height: 200,
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     borderRadius: 16,
     marginBottom: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#25262C',
+    borderColor: '#94a0b2',
+    marginHorizontal: 20,
   },
   mapPlaceholderText: {
-    color: '#585C63',
+    color: '#ffffff',
     fontWeight: '600',
   },
   listContent: {
     paddingBottom: 100, // Space for tab bar
   },
   card: {
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     borderRadius: 16,
     padding: 18,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+    marginHorizontal: 20,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -199,12 +209,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modeBadge: {
-    backgroundColor: '#25262C',
+    backgroundColor: '#0f172a2e',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#3A3B40',
+    borderColor: '#94a0b2',
   },
   modeText: {
     color: '#B0B5BA',
@@ -215,7 +225,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   locationLabel: {
-    color: '#7C8087',
+    color: '#ffffff',
     fontSize: 12,
     marginBottom: 2,
   },
@@ -229,7 +239,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 12, // React Native 0.71+
     borderTopWidth: 1,
-    borderTopColor: '#25262C',
+    borderTopColor: '#94a0b2',
     paddingTop: 12,
   },
   actionButton: {

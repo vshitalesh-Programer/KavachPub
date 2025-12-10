@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ToastAndroid
+  ToastAndroid,
+  Image
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
-import {GoogleSignin, statusCodes} from '@react-native-google-signin/google-signin';
-import {normalize} from '../utils/AppFonts';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { normalize } from '../utils/AppFonts';
 
 import { loginRequest, signupRequest } from '../redux/slices/authSlice';
 import { useDispatch, useSelector } from 'react-redux';
+
+const PLACEHOLDER_COLOR = '#9CA3AF';
 
 const LoginScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
@@ -120,7 +122,7 @@ const LoginScreen = ({navigation}) => {
   
   return (
     <LinearGradient
-      colors={['#140e12', '#0a0b10']}
+      colors={['#68778f', '#68778f']}
       style={styles.container}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
@@ -135,23 +137,7 @@ const LoginScreen = ({navigation}) => {
           <View style={styles.logoSection}>
             <View style={styles.logoContainer}>
               <View style={styles.logoIcon}>
-                <Svg width={normalize(40)} height={normalize(40)} viewBox="0 0 128 128">
-                  <Defs>
-                    <SvgLinearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                      <Stop offset="0" stopColor="#ef4444" />
-                      <Stop offset="1" stopColor="#dc2626" />
-                    </SvgLinearGradient>
-                  </Defs>
-                  <Path
-                    fill="url(#g)"
-                    d="M64 8c12 10 28 12 44 12v40c0 26-18 49-44 60C38 109 20 86 20 60V20c16 0 32-2 44-12z"
-                  />
-                  <Path
-                    fill="white"
-                    opacity="0.14"
-                    d="M64 14c9 8 22 10 35 11v33c0 22-15 41-35 50-20-9-35-28-35-50V25c13-1 26-3 35-11z"
-                  />
-                </Svg>
+                <Image source={require('../assets/images/kavach-shield.png')} style={styles.logoIcon} />
               </View>
             </View>
             <Text style={styles.appName}>Kavach</Text>
@@ -198,7 +184,7 @@ const LoginScreen = ({navigation}) => {
               <TextInput
                 style={styles.input}
                 placeholder="you@example.com"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={PLACEHOLDER_COLOR}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -209,7 +195,7 @@ const LoginScreen = ({navigation}) => {
               <TextInput
                 style={styles.input}
                 placeholder="Your password"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={PLACEHOLDER_COLOR}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -225,14 +211,14 @@ const LoginScreen = ({navigation}) => {
               </TouchableOpacity>
 
               {/* Divider */}
-              <View style={styles.dividerContainer}>
+              {/* <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>OR</Text>
                 <View style={styles.dividerLine} />
-              </View>
+              </View> */}
 
               {/* Google Sign-In Button */}
-              <TouchableOpacity 
+              {/* <TouchableOpacity 
                 style={[styles.googleButton, isLoading && styles.googleButtonDisabled]} 
                 onPress={handleGoogleSignIn}
                 disabled={isLoading}>
@@ -263,7 +249,7 @@ const LoginScreen = ({navigation}) => {
                     <Text style={styles.googleButtonText}>Continue with Google</Text>
                   </>
                 )}
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
           </View>
 
@@ -274,11 +260,11 @@ const LoginScreen = ({navigation}) => {
         </ScrollView>
 
         {/* Bottom Left Icon */}
-        <View style={styles.bottomIcon}>
+        {/* <View style={styles.bottomIcon}>
           <View style={styles.iconCircle}>
             <Text style={styles.lightningIcon}>⚡</Text>
           </View>
-        </View>
+        </View> */}
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -290,17 +276,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100,
+    paddingVertical: 100,
   },
   logoSection: {
     alignItems: 'center',
-    paddingTop: normalize(40),
+    paddingTop: normalize(50),
     paddingBottom: normalize(20),
   },
   logoContainer: {
     marginBottom: 16,
-    backgroundColor:'#2b1216',
+    backgroundColor:'#68778f',
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
   },
   logoIcon: {
     width: normalize(80),
@@ -321,12 +309,17 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     paddingHorizontal: 24,
-    backgroundColor:'#10141d',
+    backgroundColor:'#68778f',
     marginHorizontal: normalize(14),
     paddingVertical: normalize(26),
     borderRadius: normalize(14),
     borderWidth: 1.5,
-    borderColor: '#81869140',
+    borderColor: '#94a0b2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 10,
     marginTop: normalize(20),
     marginBottom: normalize(20),
   },
@@ -338,14 +331,14 @@ const styles = StyleSheet.create({
   toggleButton: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 17,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#81869140',
+    borderColor: '#94a0b2',
   },
   toggleButtonActive: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#e98f7c',
   },
   toggleButtonText: {
     color: '#FFFFFF',
@@ -376,7 +369,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    backgroundColor:'#10141d',
+    backgroundColor:'#68778f',
     borderRadius: 16,
     fontSize: normalize(14),
     color: '#FFFFFF',
@@ -384,10 +377,10 @@ const styles = StyleSheet.create({
     paddingVertical: normalize(6),
     paddingStart: normalize(10),
     borderWidth: 1.5,
-    borderColor: '#81869140',
+    borderColor: '#94a0b2',
   },
   loginButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#e98f7c',
     borderRadius: 15,
     paddingVertical: 8,
     alignItems: 'center',
@@ -405,7 +398,7 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#81869140',
+    backgroundColor: '#94a0b2',
   },
   dividerText: {
     color: '#9CA3AF',

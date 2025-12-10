@@ -120,7 +120,8 @@ const ContactsScreen = () => {
 
   return (
     <LinearGradient
-      colors={['#240E11', '#0c0b11']}
+      colors={['#68778f', '#68778f', '#68778f']}
+      locations={[0, 0.2, 1]}
       start={{x: 0, y: 0}}
       end={{x: 0, y: 1}}
       angle={190}
@@ -157,12 +158,12 @@ const ContactsScreen = () => {
       {loading || permissionStatus === 'requesting' ? (
         <React.Fragment>
           <ActivityIndicator size="large" color="#E5484D" style={{marginTop: 50}} />
-          <Text style={{color: '#9CA3AF', textAlign: 'center', marginTop: 10}}>
+          <Text style={{color: '#ffffff', textAlign: 'center', marginTop: 10}}>
             {permissionStatus === 'requesting' ? 'Requesting permission...' : 'Loading Contacts...'}
           </Text>
         </React.Fragment>
       ) : permissionStatus !== 'granted' ? (
-        <Text style={{color: '#9CA3AF', textAlign: 'center', marginTop: 40}}>
+        <Text style={{color: '#ffffff', textAlign: 'center', marginTop: 40}}>
           Allow contacts permission to view and manage your synced contacts.
         </Text>
       ) : (
@@ -190,13 +191,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: nH(40),
-    paddingHorizontal: nW(20),
   },
   gradient: {
     flex: 1,
   },
   header: {
     marginBottom: nH(20),
+    marginHorizontal: nW(20),
   },
   title: {
     fontSize: 28,
@@ -206,7 +207,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#ffffff',
     lineHeight: 20,
   },
   boldWhite: {
@@ -217,15 +218,21 @@ const styles = StyleSheet.create({
     paddingBottom: nH(100),
   },
   syncCard: {
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     borderRadius: n(14),
     padding: n(16),
     borderWidth: n(1),
-    borderColor: '#25262C',
+    borderColor: '#94a0b2',
     flexDirection: 'row',
     alignItems: 'center',
     gap: nW(12),
     marginBottom: nH(12),
+    marginHorizontal: nW(20),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
   },
   syncTitle: {
     color: '#FFFFFF',
@@ -234,7 +241,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   syncSubtitle: {
-    color: '#9CA3AF',
+    color: '#ffffff',
     fontSize: 12,
     lineHeight: 16,
   },
@@ -244,12 +251,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   syncButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#e98f7c',
     paddingVertical: nH(10),
     paddingHorizontal: nW(14),
     borderRadius: n(12),
     borderWidth: n(1),
-    borderColor: '#DC2626',
+    borderColor: '#e98f7c',
   },
   syncButtonText: {
     color: '#FFFFFF',
@@ -264,12 +271,12 @@ const styles = StyleSheet.create({
     marginBottom: nH(12),
   },
   sectionHeader: {
-    color: '#9CA3AF',
+    color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    backgroundColor: '#1E1F25',
+    backgroundColor: '#68778f',
     paddingVertical: nH(4),
     paddingHorizontal: nW(12),
     borderRadius: n(12),
@@ -285,14 +292,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   card: {
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     borderRadius: n(16),
     paddinHorizontal: nW(16),
     padding: n(16),
     marginBottom: nH(20),
     borderWidth: n(1),
-    borderColor: '#25262C',
+    borderColor: '#94a0b2',
     paddingBottom: nH(8),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+    marginHorizontal: nW(20),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -308,7 +321,7 @@ const styles = StyleSheet.create({
   },
   contactDetail: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#ffffff',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -358,7 +371,7 @@ const styles = StyleSheet.create({
     marginTop: -nH(6),
   },
   footerPillLabel: {
-    color: '#9CA3AF',
+    color: '#ffffff',
     fontSize: n(8),
     marginBottom: 4,
   },

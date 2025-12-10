@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   Switch,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../redux/slices/authSlice';
+import AppFonts from '../utils/AppFonts';
 
 const SettingsScreen = () => {
   const dispatch = useDispatch();
@@ -18,13 +20,16 @@ const SettingsScreen = () => {
   const [autoText, setAutoText] = useState(false);
 
   return (
+
     <View style={styles.container}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
         {/* Header Icon */}
-        <View style={styles.headerIcon} />
+        <View style={styles.header}>
+          <Image source={require('../assets/images/kavach-shield.png')} style={styles.logo} />
+        </View>
 
         {/* Main Settings Box */}
         <View style={styles.settingsBox}>
@@ -34,14 +39,14 @@ const SettingsScreen = () => {
             <Text style={styles.autoTitle}>Email Profile</Text>
             <Text style={styles.autoDesc}>{user?.email || 'No email found'}</Text>
           </View>
-          
+
           <View style={[styles.autoTextBox, { marginTop: 10 }]}>
             <Text style={styles.autoTitle}>User Name</Text>
-             <Text style={styles.autoDesc}>{user?.name || 'Kavach User'}</Text>
+            <Text style={styles.autoDesc}>{user?.name || 'Kavach User'}</Text>
           </View>
         </View>
       </ScrollView>
-      
+
       {/* Logout Button - Fixed at bottom */}
       <TouchableOpacity
         style={styles.logoutBtn}
@@ -78,9 +83,29 @@ const renderHoldButton = (value, selected, setSelected, note) => (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E0F14',
-    padding: 20,
+    backgroundColor: '#68778f',
     paddingTop: 60,
+  },
+
+  header: {
+    marginBottom: AppFonts.nH(20),
+    marginTop: AppFonts.nH(10),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginHorizontal: AppFonts.nW(20),
+    // Removed row/alignItems/gap to stack vertically
+  },
+
+  logo: {
+    width: AppFonts.n(30),
+    height: AppFonts.n(30),
+    borderRadius: 12,
+    backgroundColor: '#68778f',
+    padding: AppFonts.n(20),
+    marginRight: AppFonts.nW(10),
+    borderWidth: 1,
+    borderColor: '#94a0b2',
   },
 
   headerIcon: {
@@ -92,9 +117,17 @@ const styles = StyleSheet.create({
   },
 
   settingsBox: {
-    backgroundColor: '#11141C',
+    backgroundColor: '#68778f',
     borderRadius: 20,
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+    marginHorizontal: 20,
   },
 
   title: {
@@ -169,10 +202,17 @@ const styles = StyleSheet.create({
 
   /* Auto Text Box */
   autoTextBox: {
-    backgroundColor: '#101218',
+    backgroundColor: '#68778f',
     padding: 16,
     borderRadius: 14,
     marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
   },
 
   autoTitle: {
@@ -182,7 +222,7 @@ const styles = StyleSheet.create({
   },
 
   autoDesc: {
-    color: '#8C8F94',
+    color: '#ffffff',
     fontSize: 13,
     marginTop: 6,
   },

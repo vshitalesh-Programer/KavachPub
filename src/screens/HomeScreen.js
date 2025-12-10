@@ -1,7 +1,7 @@
+/* eslint-disable no-alert */
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView, PermissionsAndroid,Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView, PermissionsAndroid, Platform, Image } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import Svg, {Defs, LinearGradient as SvgLinearGradient, Stop, Path} from 'react-native-svg';
 import { normalize } from '../utils/AppFonts';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
@@ -26,10 +26,10 @@ const HomeScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const incidents = useSelector(state => state.incidents.incidents);
   const contacts = useSelector(state => state.contacts.contacts) || [];
-  
+
   // Flatten contacts if they are sectioned
   const contactCount = contacts.reduce((acc, section) => acc + (section.data ? section.data.length : 0), 0);
-  
+
   const lastLoggedIncident = incidents.length > 0 ? incidents[0] : null;
 
   useEffect(() => {
@@ -58,19 +58,18 @@ const HomeScreen = ({ navigation }) => {
     const handleStopScan = () => {
       setIsScanning(false);
       console.log('Scan stopped');
-      console.log('Total devices found:', peripherals.size);
     };
 
-    
+
     const discoverListener = bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', (data) => {
-      
+
       // Track events
       setEventCount(prev => prev + 1);
       setLastEvent(data);
-      
+
       handleDiscoverPeripheral(data);
     });
-    
+
     const stopScanListener = bleManagerEmitter.addListener('BleManagerStopScan', () => {
       console.log('🟡 [BLE] ===== BleManagerStopScan EVENT RECEIVED =====');
       handleStopScan();
@@ -129,37 +128,37 @@ const HomeScreen = ({ navigation }) => {
         // Trigger Classic Discovery (unpaired) in background
         console.log('🟢 [Classic] Calling scanClassic...');
         BluetoothService.scanClassic().then(classicDevices => {
-             console.log('🔵 [Classic] detailed results:', classicDevices.length);
-             if (classicDevices.length > 0) {
-                 setPeripherals((prevMap) => {
-                    const newMap = new Map(prevMap);
-                    classicDevices.forEach(device => {
-                       // classic device often has 'address' instead of 'id', but verify lib output
-                       const id = device.address || device.id; 
-                       if (id) {
-                           // Prefer existing entry if it has more info (like from bonded list)
-                           // But update it if we found it again.
-                           // Actually, let's just add it.
-                           newMap.set(id, { 
-                               id: id, 
-                               name: device.name || 'Unknown Classic Device',
-                               address: device.address, // Keep address for Classic distinction
-                               class: device.class,
-                               rssi: device.rssi // Might be undefined
-                           });
-                       }
-                    });
-                    return newMap;
-                 });
-             }
+          console.log('🔵 [Classic] detailed results:', classicDevices.length);
+          if (classicDevices.length > 0) {
+            setPeripherals((prevMap) => {
+              const newMap = new Map(prevMap);
+              classicDevices.forEach(device => {
+                // classic device often has 'address' instead of 'id', but verify lib output
+                const id = device.address || device.id;
+                if (id) {
+                  // Prefer existing entry if it has more info (like from bonded list)
+                  // But update it if we found it again.
+                  // Actually, let's just add it.
+                  newMap.set(id, {
+                    id: id,
+                    name: device.name || 'Unknown Classic Device',
+                    address: device.address, // Keep address for Classic distinction
+                    class: device.class,
+                    rssi: device.rssi // Might be undefined
+                  });
+                }
+              });
+              return newMap;
+            });
+          }
         });
-        
+
         // Start the scan
         console.log('🟢 [BLE] Calling scanForDevices...');
         await BluetoothService.scanForDevices(20); // 20 seconds
         console.log('🟢 [BLE] Scan initiated, waiting for devices...');
         console.log('🟢 [BLE] Event listeners should be active. Waiting for BleManagerDiscoverPeripheral events...');
-        
+
         // Auto-stop scanning after duration
         scanTimeoutRef.current = setTimeout(async () => {
           console.log('🟡 [BLE] Auto-stopping scan after timeout');
@@ -170,7 +169,7 @@ const HomeScreen = ({ navigation }) => {
             console.log('🟡 [BLE] Error stopping scan:', e);
           }
           setIsScanning(false);
-          
+
           // Log final count
           setPeripherals((map) => {
             const currentMap = map instanceof Map ? map : new Map();
@@ -193,24 +192,24 @@ const HomeScreen = ({ navigation }) => {
   const connectToDevice = async (device) => {
     try {
       setIsScanning(false); // Stop scanning before connecting
-      
+
       // Check if it's a Classic device (we marked it with 'address' or 'deviceClass' usually, or just check ID format/missing RSSI?)
       // For now, if we have a way to distinguish, great. 
       // RNBluetoothClassic devices usually have `address` and `deviceClass`. BleManager devices use `id` (UUID on iOS, Mac on Android).
       // Let's assume if it came from our scanClassic merge, it might be distinguishable.
       // But actually, `connectToClassicDevice` handles the classic connection. 
       // We can try Classic connection if it looks like a classic device, or try BLE if it fails?
-      
+
       // Simple heuristic: If it was found via Classic scan, we probably stored extra props? 
       // Or we can just try one then the other? Not ideal.
       // Let's rely on how we stored it. 
-      
-      if (device.address && !device.advertising) { 
-          // Likely a classic device from RNBluetoothClassic (which returns address, name, deviceClass)
-           await BluetoothService.connectToClassicDevice(device.id); // device.id is address in our map
+
+      if (device.address && !device.advertising) {
+        // Likely a classic device from RNBluetoothClassic (which returns address, name, deviceClass)
+        await BluetoothService.connectToClassicDevice(device.id); // device.id is address in our map
       } else {
-           // Default to BLE
-           await BluetoothService.connectToDevice(device.id);
+        // Default to BLE
+        await BluetoothService.connectToDevice(device.id);
       }
 
       alert(`Connected to ${device.name || device.id}`);
@@ -297,162 +296,193 @@ const HomeScreen = ({ navigation }) => {
 
   const handleSOS = async () => {
     try {
-        console.log('Triggering SOS...');
-        
-        let ipAddress = '0.0.0.0';
+      console.log('Triggering SOS...');
+
+      let ipAddress = '0.0.0.0';
+      try {
+        ipAddress = await DeviceInfo.getIpAddress();
+      } catch (e) { console.warn('Failed to get IP', e); }
+
+      if (Platform.OS === 'android') {
         try {
-            ipAddress = await DeviceInfo.getIpAddress();
-        } catch(e) { console.warn('Failed to get IP', e); }
-
-        if (Platform.OS === 'android') {
-             try {
-                const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-                if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-                    console.warn('Location permission denied');
-                }
-             } catch (err) {
-                 console.warn('Permission request error', err);
-             }
+          const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            console.warn('Location permission denied');
+          }
+        } catch (err) {
+          console.warn('Permission request error', err);
         }
+      }
 
-        const dispatchIncident = async (lat, lng) => {
-            const timestamp = new Date().toLocaleString();
-            const incidentData = {
-                id: Date.now().toString(),
-                time: timestamp,
-                lat: lat || 0,
-                lng: lng || 0,
-                mode: 'Loud', 
-                ip: ipAddress,
-            };
-            
-            console.log('Dispatching SOS incident:', incidentData);
-            dispatch(addIncident(incidentData));
-
-            // Send to API
-            try {
-                const locationData = {
-                    latitude: lat || 0, 
-                    longitude: lng || 0,
-                    deviceId: await DeviceInfo.getUniqueId(),
-                    deviceInfo: await DeviceInfo.getDeviceName(),
-                    ip: ipAddress
-                };
-                const response = await ApiService.triggerEmergency(locationData);
-                const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
-                Alert.alert('SOS Sent', message);
-            } catch (err) {
-                console.error('API Error:', err);
-                Alert.alert('SOS Saved', 'Logged locally. Failed to send to server.');
-            }
+      const dispatchIncident = async (lat, lng) => {
+        const timestamp = new Date().toLocaleString();
+        const incidentData = {
+          id: Date.now().toString(),
+          time: timestamp,
+          lat: lat || 0,
+          lng: lng || 0,
+          mode: 'Loud',
+          ip: ipAddress,
         };
 
-        Geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                dispatchIncident(latitude, longitude);
-            },
-            (error) => {
-                console.error('Location Error:', error);
-                // Fallback to 0,0
-                dispatchIncident(0, 0);
-            },
-            { enableHighAccuracy: false, timeout: 5000, maximumAge: 10000 }
-        );
+        console.log('Dispatching SOS incident:', incidentData);
+        dispatch(addIncident(incidentData));
+
+        // Send to API
+        try {
+          const locationData = {
+            latitude: lat || 0,
+            longitude: lng || 0,
+            deviceId: await DeviceInfo.getUniqueId(),
+            deviceInfo: await DeviceInfo.getDeviceName(),
+            ip: ipAddress
+          };
+          const response = await ApiService.triggerEmergency(locationData);
+          const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
+          Alert.alert('SOS Sent', message);
+        } catch (err) {
+          console.error('API Error:', err);
+          Alert.alert('SOS Saved', 'Logged locally. Failed to send to server.');
+        }
+      };
+
+      Geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          dispatchIncident(latitude, longitude);
+        },
+        (error) => {
+          console.error('Location Error:', error);
+          // Fallback to 0,0
+          dispatchIncident(0, 0);
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 10000 }
+      );
     } catch (error) {
-        Alert.alert('Error', `Failed to initiate SOS: ${error.message || error}`);
+      Alert.alert('Error', `Failed to initiate SOS: ${error.message || error}`);
     }
   };
 
   return (
     <LinearGradient
-      colors={['#240E11', '#0c0b11']}
-      start={{x: 0, y: 0}}
-      end={{x: 0, y: 1}}
-      angle={190}
+      colors={['#66697d', '#68778f', '#68778f']}
+      locations={[0, 0.2, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      angle={160}
       useAngle={true}
       style={styles.gradient}>
       <View style={styles.container}>
-         {/* Header */}
-         <View style={styles.header}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Image source={require('../assets/images/kavach-shield.png')} style={styles.logo} />
+          <View>
             <Text style={styles.appName}>Kavach</Text>
             <Text style={styles.subtitle}>Safety Console</Text>
+          </View>
         </View>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-        
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Contacts')}>
-            <Text style={styles.statLabel}>Contacts</Text>
-            <Text style={styles.statValue}>{contactCount > 0 ? contactCount : '-'}</Text>
+
+          {/* Stats Row */}
+          <View style={styles.statsRow}>
+            <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Contacts')}>
+              <Text style={styles.statLabel}>Contacts</Text>
+              <Text style={styles.statValue}>{contactCount > 0 ? contactCount : '-'}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>Incidents</Text>
+              <Text style={styles.statValue}>{incidents.length > 0 ? incidents.length : '-'}</Text>
+            </View>
+          </View>
+
+          {/* Scan Bluetooth Devices Card */}
+          <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
+            <View>
+              <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
+              <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
+            </View>
+            <View style={styles.scanIconBox}>
+              {/* Using text emoji for now, can be replaced with Icon if available */}
+              <Text style={styles.scanIconEmoji}>📡</Text>
+            </View>
           </TouchableOpacity>
 
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Incidents</Text>
-            <Text style={styles.statValue}>{incidents.length > 0 ? incidents.length : '-'}</Text>
-          </View>
-        </View>
-
-        {/* Scan Bluetooth Devices Card */}
-        <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
-          <View>
-            <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
-            <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
-          </View>
-          <View style={styles.scanIconBox}>
-             {/* Using text emoji for now, can be replaced with Icon if available */}
-            <Text style={{fontSize: 22}}>📡</Text> 
-          </View>
-        </TouchableOpacity>
-
-        {/* Hero Card - Ready to Protect */}
-        <View style={styles.heroCard}>
+          {/* Hero Card - Ready to Protect */}
+          <View style={styles.heroCard}>
             <View style={styles.heroHeader}>
-                <View>
-                    <Text style={styles.heroTitle}>Ready to Protect</Text>
-                    <Text style={styles.heroSubtitle}>Hold <Text style={styles.boldWhite}>5s</Text> • Mode Loud</Text>
-                </View>
-                <TouchableOpacity style={styles.adjustBtn} onPress={openScanModal}>
-                    <Text style={styles.adjustText}>Adjust</Text>
-                </TouchableOpacity>
+              <View>
+                <Text style={styles.heroTitle}>Ready to Protect</Text>
+                <Text style={styles.heroSubtitle}>Hold <Text style={styles.boldWhite}>5s</Text> • Mode Loud</Text>
+              </View>
+              <TouchableOpacity style={styles.adjustBtn} onPress={openScanModal}>
+                <Text style={styles.adjustText}>Adjust</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.sosContainer}>
-                <TouchableOpacity 
-                    style={styles.sosButton} 
-                    onLongPress={handleSOS} 
-                    delayLongPress={5000}
-                    activeOpacity={0.8}
+              <TouchableOpacity
+                style={styles.sosButton}
+                onLongPress={handleSOS}
+                delayLongPress={5000}
+                activeOpacity={0.8}
+                accessibilityLabel="Press and hold to trigger SOS"
+              >
+                <LinearGradient
+                  colors={['#906f72', '#906f72', '#000000']}
+                  locations={[0, 0.5, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  angle={140}
+                  useAngle
+                  style={styles.sosButtonGradient}
                 >
+                  <LinearGradient
+                    colors={['#2f3338', '#5a6068', '#9aa3ad', '#5b616a', '#2e3237']}
+                    start={{ x: 0.3, y: 0.3 }}
+                    end={{ x: 0.8, y: 0.8 }}
+                    style={styles.sosOuter}
+                  >
+                    <View style={styles.sosInsetHighlight} />
                     <LinearGradient
-                        colors={['#2A2D36', '#1A1C22']}
-                        style={styles.sosGradient}
+                      colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.35)', 'rgba(255,255,255,0)']}
+                      start={{ x: 0.2, y: 0 }}
+                      end={{ x: 0.8, y: 1 }}
+                      style={styles.sosSheen}
+                    />
+                    <View style={styles.sosGlow} />
+                    <LinearGradient
+                      colors={['#4b4f55', '#6b7078', '#3c4046']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.sosInner}
                     >
-                        {/* Inner Glow/Ring effect could go here */}
-                        <Text style={styles.sosIcon}>🚨</Text>
-                        <Text style={styles.sosText}>SOS</Text>
-                        <Text style={styles.sosSubText}>Press & hold</Text>
+                      <Text style={styles.sosIcon}>🚨</Text>
+                      <Text style={styles.sosText}>SOS</Text>
+                      <Text style={styles.sosSubText}>Press & hold</Text>
                     </LinearGradient>
-                </TouchableOpacity>
+                  </LinearGradient>Ï
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
-        </View>
+          </View>
 
-        {/* Last Incident */}
-        <View style={styles.lastIncidentCard}>
+          {/* Last Incident */}
+          <View style={styles.lastIncidentCard}>
             <View>
-                <Text style={styles.lastIncidentLabel}>Last Incident</Text>
-                {lastLoggedIncident ? (
-                    <Text style={styles.lastIncidentValue}>{lastLoggedIncident.time} • {lastLoggedIncident.mode}</Text>
-                ) : (
-                    <Text style={styles.lastIncidentValue}>No incidents recorded.</Text>
-                )}
+              <Text style={styles.lastIncidentLabel}>Last Incident</Text>
+              {lastLoggedIncident ? (
+                <Text style={styles.lastIncidentValue}>{lastLoggedIncident.time} • {lastLoggedIncident.mode}</Text>
+              ) : (
+                <Text style={styles.lastIncidentValue}>No incidents recorded.</Text>
+              )}
             </View>
             <TouchableOpacity style={styles.viewLogBtn} onPress={() => setIsLogModalVisible(true)}>
-                <Text style={styles.viewLogText}>View Log</Text>
+              <Text style={styles.viewLogText}>View Log</Text>
             </TouchableOpacity>
-        </View>
+          </View>
 
         </ScrollView>
       </View>
@@ -469,23 +499,23 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Available Devices</Text>
               <View style={styles.modalHeaderRight}>
-            {isScanning && <ActivityIndicator color="#DC2626" style={styles.scanIndicator} />}
-            {!isScanning && (
-              <TouchableOpacity 
-                style={styles.reconnectButton}
-                onPress={handleReconnect}
-              >
-                <Text style={styles.reconnectButtonText}>Reconnect</Text>
-              </TouchableOpacity>
-            )}
+                {isScanning && <ActivityIndicator color="#e98f7c" style={styles.scanIndicator} />}
+                {!isScanning && (
+                  <TouchableOpacity
+                    style={styles.reconnectButton}
+                    onPress={handleReconnect}
+                  >
+                    <Text style={styles.reconnectButtonText}>Reconnect</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-            
+
             {/* Debug Info */}
             <View style={styles.debugContainer}>
               <Text style={styles.debugText}>
-                Scanning: {isScanning ? 'Yes' : 'No'} | 
-                Devices: {peripherals instanceof Map ? peripherals.size : 0} | 
+                Scanning: {isScanning ? 'Yes' : 'No'} |
+                Devices: {peripherals instanceof Map ? peripherals.size : 0} |
                 Events: {eventCount}
               </Text>
               {lastEvent && (
@@ -499,11 +529,11 @@ const HomeScreen = ({ navigation }) => {
               data={
                 peripherals instanceof Map
                   ? Array.from(peripherals.values()).sort((a, b) => {
-                      const aBonded = !!a?.isBonded;
-                      const bBonded = !!b?.isBonded;
-                      if (aBonded === bBonded) return 0;
-                      return aBonded ? 1 : -1; // bonded go to bottom
-                    })
+                    const aBonded = !!a?.isBonded;
+                    const bBonded = !!b?.isBonded;
+                    if (aBonded === bBonded) return 0;
+                    return aBonded ? 1 : -1; // bonded go to bottom
+                  })
                   : []
               }
               renderItem={renderDeviceItem}
@@ -513,8 +543,8 @@ const HomeScreen = ({ navigation }) => {
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
-                    {isScanning 
-                      ? 'Scanning for BLE devices...' 
+                    {isScanning
+                      ? 'Scanning for BLE devices...'
                       : `No BLE devices found. (Found: ${peripherals instanceof Map ? peripherals.size : 0})`}
                   </Text>
                   <Text style={styles.emptySubtext}>
@@ -530,8 +560,8 @@ const HomeScreen = ({ navigation }) => {
               }
             />
 
-            <TouchableOpacity 
-              style={styles.closeButton} 
+            <TouchableOpacity
+              style={styles.closeButton}
               onPress={handleCloseModal}
             >
               <Text style={styles.closeButtonText}>Close</Text>
@@ -552,7 +582,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Recent Incident</Text>
               <TouchableOpacity onPress={() => setIsLogModalVisible(false)}>
-                 <Text style={{color: '#9A9FA5', fontSize: 16}}>Close</Text>
+                <Text style={styles.modalClose}>Close</Text>
               </TouchableOpacity>
             </View>
 
@@ -561,7 +591,7 @@ const HomeScreen = ({ navigation }) => {
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
-                <Text style={{color: '#9A9FA5', textAlign: 'center', marginTop: 20}}>
+                <Text style={styles.emptyIncidents}>
                   No incidents recorded properly.
                 </Text>
               }
@@ -586,9 +616,18 @@ const HomeScreen = ({ navigation }) => {
 
 
 const styles = StyleSheet.create({
+  logo: {
+    width: AppFonts.n(30),
+    height: AppFonts.n(30),
+    borderRadius: 12,
+    backgroundColor: '#68778f',
+    padding: AppFonts.n(20),
+    marginRight: AppFonts.nW(10),
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+  },
   container: {
     flex: 1,
-    paddingHorizontal: AppFonts.nW(20),
     paddingTop: AppFonts.nH(40),
   },
   gradient: {
@@ -601,6 +640,10 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: AppFonts.nH(20),
     marginTop: AppFonts.nH(10),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginHorizontal: AppFonts.nW(20),
     // Removed row/alignItems/gap to stack vertically
   },
 
@@ -613,7 +656,7 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    color: '#8E9196',
+    color: '#ffffff',
     fontSize: AppFonts.n(11),
   },
 
@@ -622,27 +665,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: AppFonts.nW(14),
     marginBottom: AppFonts.nH(18),
+    marginHorizontal: AppFonts.nW(20),
   },
 
   statCard: {
     flex: 1,
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     padding: AppFonts.n(10),
     borderRadius: AppFonts.n(16),
     // height: AppFonts.nH(80),
     paddingHorizontal: AppFonts.nW(14),
-    justifyContent: 'space-between', 
+    justifyContent: 'space-between',
     alignItems: 'flex-start', // Stack label and value
     borderWidth: AppFonts.n(1),
-    borderColor: '#25262C',
+    borderColor: '#94a0b2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
   },
 
-  statLabel: { color: '#8E9196', fontSize: AppFonts.n(10), fontWeight: '500' },
+  statLabel: { color: '#ffffff', fontSize: AppFonts.n(10), fontWeight: '500' },
   statValue: { color: 'white', fontSize: AppFonts.n(20), fontWeight: '700' },
 
   // Scan Card
   scanCard: {
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     borderRadius: AppFonts.n(16),
     padding: AppFonts.n(12),
     marginBottom: AppFonts.nH(20),
@@ -650,60 +699,75 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: AppFonts.n(1),
-    borderColor: '#25262C',
+    borderColor: '#94a0b2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+    marginHorizontal: AppFonts.nW(20),
   },
   scanTitle: { color: 'white', fontSize: AppFonts.n(14), fontWeight: '700' },
-  scanSubtitle: { color: '#9A9FA5', fontSize: AppFonts.n(11), marginTop: AppFonts.nH(2) },
+  scanSubtitle: { color: '#ffffff', fontSize: AppFonts.n(11), marginTop: AppFonts.nH(2) },
   scanIconBox: {
-      width: AppFonts.nW(44),
-      height: AppFonts.nH(44),
-      backgroundColor: '#25262C',
-      borderRadius: AppFonts.n(12),
-      justifyContent: 'center',
-      alignItems: 'center',
+    width: AppFonts.nW(44),
+    height: AppFonts.nH(44),
+    backgroundColor: '#25262C',
+    borderRadius: AppFonts.n(12),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanIconEmoji: {
+    fontSize: 22,
   },
 
   // Hero Card
   heroCard: {
-      backgroundColor: '#16171D',
-      borderRadius: AppFonts.n(24),
-      padding: AppFonts.n(18),
-      borderWidth: AppFonts.n(1),
-      borderColor: '#25262C', // Subtle border
-      marginBottom: AppFonts.nH(20),
-      justifyContent: 'space-between',
+    backgroundColor: '#68778f',
+    borderRadius: AppFonts.n(24),
+    padding: AppFonts.n(18),
+    borderWidth: AppFonts.n(1),
+    borderColor: '#94a0b2', // Subtle border
+    marginBottom: AppFonts.nH(20),
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+    marginHorizontal: AppFonts.nW(20),
   },
   heroHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   heroTitle: {
-      color: 'white',
-      fontSize: AppFonts.n(16),
-      fontWeight: '700',
+    color: 'white',
+    fontSize: AppFonts.n(16),
+    fontWeight: '700',
   },
 
   heroSubtitle: {
-      color: '#9A9FA5',
-      fontSize: AppFonts.n(11),
-      marginTop: AppFonts.nH(4),
+    color: '#ffffff',
+    fontSize: AppFonts.n(11),
+    marginTop: AppFonts.nH(4),
   },
   boldWhite: {
-      color: 'white',
-      fontWeight: '700',
+    color: 'white',
+    fontWeight: '700',
   },
   adjustBtn: {
     borderWidth: AppFonts.n(1),
-    borderColor: '#3A3B40',
+    borderColor: '#94a0b2',
     borderRadius: AppFonts.n(20),
     paddingVertical: AppFonts.nH(6),
     paddingHorizontal: AppFonts.nW(16),
   },
-  adjustText: { 
-      color: '#B0B5BA', 
-      fontSize: AppFonts.n(11),
-      fontWeight: '500',
+  adjustText: {
+    color: '#ffffff',
+    fontSize: AppFonts.n(11),
+    fontWeight: '500',
   },
 
   sosContainer: {
@@ -718,31 +782,87 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100, // Circle
-    // We'll use the gradient for the look
-    padding: 6, // space for outer ring if needed
-    backgroundColor: '#2A2B32', // Outer ring placeholder
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
-    
-    // Shadow/Glow
-    shadowColor: "#000",
-    shadowOffset: {
-        width: 0,
-        height: 10,
-    },
-    shadowOpacity: 0.51,
-    shadowRadius: 13.16,
-    elevation: 20,
+    shadowColor: 'rgba(0,0,0,0.45)',
+    shadowOffset: { width: 0, height: 22 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 30,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
   },
-  
-  sosGradient: {
-     width: '100%',
-     height: '100%',
-     borderRadius: AppFonts.n(100),
-     justifyContent: 'center',
-     alignItems: 'center',
-     borderWidth: AppFonts.n(4),
-     borderColor: '#4A2A2F', // reddish tint border
+
+  sosButtonGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 100,
+    padding: 10,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  sosOuter: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  sosInsetHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    opacity: 0.6,
+  },
+
+  sosSheen: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 120,
+    opacity: 0.45,
+  },
+
+  sosGlow: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    right: 6,
+    bottom: 6,
+    borderRadius: 94,
+    borderWidth: 1,
+    borderColor: 'rgba(220,38,38,0.35)',
+    shadowColor: 'rgba(220,38,38,0.4)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 14,
+  },
+
+  sosInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 90,
+    margin: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: 'rgba(0,0,0,0.45)',
+    shadowOffset: { width: 12, height: 12 },
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
   },
 
   sosIcon: { fontSize: AppFonts.n(32), color: 'white', marginBottom: AppFonts.nH(4) },
@@ -753,34 +873,40 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 
-  sosSubText: { color: '#9A9FA5', marginTop: AppFonts.nH(4), fontSize: AppFonts.n(10) },
+  sosSubText: { color: '#ffffff', marginTop: AppFonts.nH(4), fontSize: AppFonts.n(10) },
 
   lastIncidentCard: {
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     padding: AppFonts.n(16),
     borderRadius: AppFonts.n(16),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: AppFonts.n(1),
-    borderColor: '#25262C',
+    borderColor: '#94a0b2',
     marginBottom: AppFonts.nH(20),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+    marginHorizontal: AppFonts.nW(20),
   },
 
   lastIncidentLabel: { color: 'white', fontSize: AppFonts.n(12), fontWeight: '600', marginBottom: AppFonts.nH(4) },
 
-  lastIncidentValue: { color: '#9A9FA5', fontSize: AppFonts.n(11) },
+  lastIncidentValue: { color: '#ffffff', fontSize: AppFonts.n(11) },
 
   viewLogBtn: {
-    backgroundColor: '#1E1F25',
+    backgroundColor: '#68778f',
     borderRadius: AppFonts.n(12),
     paddingVertical: AppFonts.nH(8),
     paddingHorizontal: AppFonts.nW(16),
     borderWidth: AppFonts.n(1),
-    borderColor: '#3A3B40',
+    borderColor: '#94a0b2',
   },
 
-  viewLogText: { color: '#B0B5BA', fontSize: AppFonts.n(11), fontWeight: '500' },
+  viewLogText: { color: '#ffffff', fontSize: AppFonts.n(11), fontWeight: '500' },
 
   // Modal Styles
   modalContainer: {
@@ -789,7 +915,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#16171D',
+    backgroundColor: '#68778f',
     borderTopLeftRadius: AppFonts.n(20),
     borderTopRightRadius: AppFonts.n(20),
     padding: AppFonts.n(20),
@@ -811,16 +937,20 @@ const styles = StyleSheet.create({
     fontSize: AppFonts.n(16),
     fontWeight: '700',
   },
+  modalClose: {
+    color: '#ffffff',
+    fontSize: 16,
+  },
   scanIndicator: {
     marginRight: 0,
   },
   reconnectButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#e98f7c',
     paddingHorizontal: AppFonts.nW(12),
     paddingVertical: AppFonts.nH(6),
     borderRadius: AppFonts.n(8),
     borderWidth: AppFonts.n(1),
-    borderColor: '#DC2626',
+    borderColor: '#e98f7c',
   },
   reconnectButtonText: {
     color: '#FFFFFF',
@@ -830,8 +960,13 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
+  emptyIncidents: {
+    color: '#ffffff',
+    textAlign: 'center',
+    marginTop: 20,
+  },
   deviceItem: {
-    backgroundColor: '#25262C',
+    backgroundColor: '#68778f',
     padding: 15,
     borderRadius: 12,
     marginBottom: 10,
@@ -848,7 +983,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deviceId: {
-    color: '#9A9FA5',
+    color: '#ffffff',
     fontSize: 12,
     marginTop: 2,
   },
@@ -881,13 +1016,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#7C8087',
+    color: '#ffffff',
     textAlign: 'center',
     marginTop: 30,
     fontSize: 16,
   },
   emptySubtext: {
-    color: '#5A5D63',
+    color: '#ffffff',
     textAlign: 'center',
     marginTop: 10,
     fontSize: 12,
@@ -918,7 +1053,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     marginBottom: 16,
-    backgroundColor:'#2b1216',
+    backgroundColor: '#68778f',
     borderRadius: 12,
     width: normalize(48),
     height: normalize(48),
@@ -935,3 +1070,4 @@ const styles = StyleSheet.create({
 });
 
 export default HomeScreen;
+

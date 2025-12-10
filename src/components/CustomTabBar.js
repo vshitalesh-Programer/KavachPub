@@ -15,7 +15,7 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
   ];
 
   return (
-    <View style={[styles.container, {paddingBottom: insets.bottom}]}>
+    <View style={[styles.container, {paddingBottom: insets.bottom || normalize(6)}]}>
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const {options} = descriptors[route.key];
@@ -59,14 +59,14 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
                   <SimpleLineIcon
                     name={isFocused && tab?.activeIcon ? tab.activeIcon : tab?.icon || 'location-pin'}
                     size={normalize(18)}
-                    color={isFocused ? '#D6282f' : '#9CA3AF'}
+                    color={isFocused ? '#DC2626' : '#ffffff'}
                     style={styles.icon}
                   />
                 ) : (
                   <Icon
                     name={isFocused && tab?.activeIcon ? tab.activeIcon : tab?.icon || 'circle'}
                     size={normalize(18)}
-                    color={isFocused ? '#D6282f' : '#9CA3AF'}
+                    color={isFocused ? '#DC2626' : '#ffffff'}
                     style={styles.icon}
                   />
                 )}
@@ -80,11 +80,11 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
               </TouchableOpacity>
               
               {/* Lightning bolt button on Home tab */}
-              {route.name === 'Home' && (
+              {/* {route.name === 'Home' && (
                 <TouchableOpacity style={styles.lightningButton}>
                   <Icon name="zap" size={normalize(20)} color="#FFFFFF" />
                 </TouchableOpacity>
-              )}
+              )} */}
             </View>
           );
         })}
@@ -95,9 +95,9 @@ const CustomTabBar = ({state, descriptors, navigation}) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#07080C',
+    backgroundColor: '#424b5b',
     borderTopWidth: 1,
-    borderTopColor: '#2C2F35',
+    borderTopColor: '#94a0b2',
   },
   tabBar: {
     flexDirection: 'row',
@@ -123,9 +123,14 @@ const styles = StyleSheet.create({
     minWidth: normalize(60),
   },
   tabActive: {
-    backgroundColor: '#240E11',
+    backgroundColor: 'rgba(220,38,38,0.14)',
     borderWidth: 1,
-    borderColor: '#421013',
+    borderColor: 'rgba(220,38,38,0.28)',
+    shadowColor: 'rgba(220,38,38,0.12)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   icon: {
     fontSize: normalize(16),
@@ -136,12 +141,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: normalize(10),
-    color: '#9CA3AF',
-    fontWeight: '400',
+    color: '#ffffff',
+    fontWeight: '500',
   },
   labelActive: {
-    color: '#D6282f',
-    fontWeight: '400',
+    color: '#DC2626',
+    fontWeight: '600',
   },
   lightningButton: {
     position: 'absolute',
