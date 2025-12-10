@@ -1041,13 +1041,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   debugContainer: {
-    backgroundColor: '#25262C',
+    backgroundColor: '#68778f',
     padding: 10,
     borderRadius: 8,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
   },
   debugText: {
-    color: '#9A9FA5',
+    color: '#ffffff',
     fontSize: 12,
     fontFamily: 'monospace',
   },

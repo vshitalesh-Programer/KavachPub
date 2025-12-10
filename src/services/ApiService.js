@@ -39,6 +39,8 @@ class ApiService {
         return response;
       },
       (error) => {
+        const status = error.response?.status;
+        const payload = error.response?.data;
         const message = payload?.message || error.message || 'Request failed';
         console.error('[API Response Error]', status ? `${status} ${message}` : message, payload || '');
         
