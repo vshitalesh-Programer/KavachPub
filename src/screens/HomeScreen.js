@@ -14,6 +14,8 @@ import AppFonts from '../utils/AppFonts';
 
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
+const SERVICE_UUID = '12345678-1234-5678-1234-56789ABCDEF0';
+const CHAR_UUID = '12345678-1234-5678-1234-56789ABCDEF1';
 
 const HomeScreen = ({ navigation }) => {
   const [isScanning, setIsScanning] = useState(false);
@@ -22,6 +24,7 @@ const HomeScreen = ({ navigation }) => {
   const [isLogModalVisible, setIsLogModalVisible] = useState(false);
   const [eventCount, setEventCount] = useState(0); // Track if events are received
   const [lastEvent, setLastEvent] = useState(null); // Store last event for debugging
+  const [lastHex, setLastHex] = useState(null); // Store last notified hex value
   const scanTimeoutRef = useRef(null);
   const dispatch = useDispatch();
   const incidents = useSelector(state => state.incidents.incidents);
@@ -75,9 +78,19 @@ const HomeScreen = ({ navigation }) => {
       handleStopScan();
     });
 
-    const listeners = [discoverListener, stopScanListener];
+    const updateListener = bleManagerEmitter.addListener('BleManagerDidUpdateValueForCharacteristic', ({ value, peripheral, characteristic, service }) => {
+      const hex = value ? value.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
+      console.log(`🔔 [BLE] Notify ${peripheral} ${service} ${characteristic}:`, hex);
+      setLastHex(hex);
+      if (hex === '01' || hex === '0x01') {
+        console.log('🚨 [BLE] SOS hex detected, triggering SOS');
+        handleSOS();
+      }
+    });
+
+    const listeners = [discoverListener, stopScanListener, updateListener];
     console.log('✅ [BLE] Event listeners registered:', listeners.length);
-    console.log('✅ [BLE] Listening for: BleManagerDiscoverPeripheral, BleManagerStopScan');
+    console.log('✅ [BLE] Listening for: BleManagerDiscoverPeripheral, BleManagerStopScan, BleManagerDidUpdateValueForCharacteristic');
 
     return () => {
       listeners.forEach(l => l.remove());
@@ -210,6 +223,22 @@ const HomeScreen = ({ navigation }) => {
       } else {
         // Default to BLE
         await BluetoothService.connectToDevice(device.id);
+        // Subscribe to notifications for known service/characteristic
+        try {
+          await BleManager.startNotification(device.id, SERVICE_UUID, CHAR_UUID);
+          console.log('🔔 [BLE] Notification started for', SERVICE_UUID, CHAR_UUID);
+          // Optionally read once immediately
+          try {
+            const data = await BleManager.read(device.id, SERVICE_UUID, CHAR_UUID);
+            const hex = data ? data.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
+            console.log('📖 [BLE] Initial read:', hex);
+            setLastHex(hex);
+          } catch (readErr) {
+            console.warn('⚠️ [BLE] Initial read failed', readErr);
+          }
+        } catch (notifyErr) {
+          console.warn('⚠️ [BLE] Failed to start notification', notifyErr);
+        }
       }
 
       alert(`Connected to ${device.name || device.id}`);
@@ -333,9 +362,8 @@ const HomeScreen = ({ navigation }) => {
           const locationData = {
             latitude: lat || 0,
             longitude: lng || 0,
-            deviceId: await DeviceInfo.getUniqueId(),
-            deviceInfo: await DeviceInfo.getDeviceName(),
-            ip: ipAddress
+            deviceId: DeviceInfo ? await DeviceInfo.getUniqueId() : 'unknown',
+            deviceInfo: DeviceInfo ? await DeviceInfo.getDeviceName() : 'unknown',
           };
           const response = await ApiService.triggerEmergency(locationData);
           const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
