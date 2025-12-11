@@ -55,6 +55,7 @@ const ContactsScreen = () => {
   const [confirmDelete, setConfirmDelete] = React.useState({ visible: false, section: null, id: null });
   const [showDeviceDropdown, setShowDeviceDropdown] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [deviceSearchQuery, setDeviceSearchQuery] = React.useState('');
 
   React.useEffect(() => {
     checkPermissionAndLoad();
@@ -137,8 +138,11 @@ const ContactsScreen = () => {
 
   const requestContactsPermission = async () => {
     try {
-      // If already granted, skip re-request
-      if (permissionStatus === 'granted') {
+      setLoading(true);
+      // If already granted, don't prompt again
+      const current = await Contacts.checkPermission();
+      if (current === 'authorized') {
+        setPermissionStatus('granted');
         await loadContacts();
         return;
       }
@@ -151,12 +155,12 @@ const ContactsScreen = () => {
         await loadContacts();
       } else {
         setPermissionStatus('denied');
-        setContacts([]);
       }
     } catch (error) {
       console.error('Permission request failed', error);
       setPermissionStatus('denied');
-      setContacts([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -166,7 +170,9 @@ const ContactsScreen = () => {
     setNameInput('');
     setPhoneInput('');
     setModalAutoCall(false);
-    setModalAutoText(false);
+    setModalAutoText(true);
+    setDeviceSearchQuery('');
+    setShowDeviceDropdown(false);
     setShowAddModal(true);
   };
 
@@ -175,12 +181,16 @@ const ContactsScreen = () => {
     setSelectedDeviceContact(null);
     setNameInput('');
     setPhoneInput('');
+    setDeviceSearchQuery('');
+    setShowDeviceDropdown(false);
   };
 
   const handleSelectDevice = (item) => {
     setSelectedDeviceContact(item);
     setNameInput(item.name);
-    setPhoneInput(item.phone);
+    // Remove spaces from phone number
+    const cleanedPhone = item.phone ? item.phone.replace(/\s+/g, '') : '';
+    setPhoneInput(cleanedPhone);
   };
 
   const handleEditContact = (sectionTitle, contact) => {
@@ -298,18 +308,42 @@ const ContactsScreen = () => {
 
           <Text style={styles.modalLabel}>Pick from phone</Text>
           <TouchableOpacity
-            style={styles.dropdownTrigger}
-            onPress={() => setShowDeviceDropdown(!showDeviceDropdown)}
+            style={[
+              styles.dropdownTrigger,
+              permissionStatus !== 'granted' && styles.dropdownDisabled,
+            ]}
+            onPress={() => permissionStatus === 'granted' ? setShowDeviceDropdown(!showDeviceDropdown) : null}
+            disabled={permissionStatus !== 'granted'}
           >
             <Text style={styles.dropdownValue}>
-              {selectedDeviceContact ? `${selectedDeviceContact.name} (${selectedDeviceContact.phone})` : 'Select from phone contacts'}
+              {permissionStatus !== 'granted'
+                ? 'Permission not provided'
+                : selectedDeviceContact
+                  ? `${selectedDeviceContact.name} (${selectedDeviceContact.phone})`
+                  : 'Select from phone contacts'}
             </Text>
-            <Text style={styles.dropdownChevron}>{showDeviceDropdown ? '▲' : '▼'}</Text>
+            <Text style={styles.dropdownChevron}>
+              {permissionStatus !== 'granted' ? '!' : showDeviceDropdown ? '▲' : '▼'}
+            </Text>
           </TouchableOpacity>
-          {showDeviceDropdown && (
+          {showDeviceDropdown && permissionStatus === 'granted' && (
             <View style={styles.dropdownListContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search contacts..."
+                placeholderTextColor="#9CA3AF"
+                value={deviceSearchQuery}
+                onChangeText={setDeviceSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
               <FlatList
-                data={deviceOptions}
+                data={deviceOptions.filter(item => {
+                  if (!deviceSearchQuery.trim()) return true;
+                  const query = deviceSearchQuery.toLowerCase();
+                  return item.name.toLowerCase().includes(query) || 
+                         item.phone.includes(query);
+                })}
                 keyExtractor={(item) => item.id}
                 style={styles.modalList}
                 renderItem={({ item }) => (
@@ -321,6 +355,7 @@ const ContactsScreen = () => {
                     onPress={() => {
                       handleSelectDevice(item);
                       setShowDeviceDropdown(false);
+                      setDeviceSearchQuery('');
                     }}
                   >
                     <Text style={styles.deviceName}>{item.name}</Text>
@@ -328,7 +363,9 @@ const ContactsScreen = () => {
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={
-                  <Text style={styles.emptyOptions}>No device contacts loaded.</Text>
+                  <Text style={styles.emptyOptions}>
+                    {deviceSearchQuery.trim() ? 'No contacts found matching your search.' : 'No device contacts loaded.'}
+                  </Text>
                 }
               />
             </View>
@@ -454,10 +491,30 @@ const ContactsScreen = () => {
           </Text>
         </View>
 
+        {/* Sync card */}
+        <View style={styles.syncCard}>
+          <View style={styles.syncContent}>
+            <Text style={styles.syncTitle}>Sync phone contacts</Text>
+            <Text style={styles.syncSubtitle}>
+              Grant contacts permission to import your phone contacts and pick Auto-call numbers.
+            </Text>
+            {permissionStatus === 'denied' && (
+              <Text style={styles.syncWarning}>Permission denied. Please allow access to sync contacts.</Text>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.syncButton}
+            onPress={requestContactsPermission}>
+            <Text style={styles.syncButtonText}>
+              {permissionStatus === 'granted' ? 'Resync' : 'Allow & Sync'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {renderAddModal()}
         {renderDeleteModal()}
 
-        {loading || permissionStatus === 'requesting' ? (
+        {/* {loading || permissionStatus === 'requesting' ? (
           <React.Fragment>
             <ActivityIndicator size="large" color="#E5484D" style={styles.statusSpinner} />
             <Text style={styles.statusText}>
@@ -468,30 +525,11 @@ const ContactsScreen = () => {
           <Text style={styles.permissionText}>
             Allow contacts permission to view and manage your synced contacts.
           </Text>
-        ) : (
+        ) : ( */}
           <ScrollView
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Sync card */}
-            <View style={styles.syncCard}>
-              <View style={styles.syncContent}>
-                <Text style={styles.syncTitle}>Sync phone contacts</Text>
-                <Text style={styles.syncSubtitle}>
-                  Grant contacts permission to import your phone contacts and pick Auto-call numbers.
-                </Text>
-                {permissionStatus === 'denied' && (
-                  <Text style={styles.syncWarning}>Permission denied. Please allow access to sync contacts.</Text>
-                )}
-              </View>
-              <TouchableOpacity
-                style={styles.syncButton}
-                onPress={requestContactsPermission}>
-                <Text style={styles.syncButtonText}>
-                  {permissionStatus === 'granted' ? 'Resync' : 'Allow & Sync'}
-                </Text>
-              </TouchableOpacity>
-            </View>
             {contacts.length === 0 && (
               <Text style={styles.emptyListText}>
                 No contacts found. Add one!
@@ -556,7 +594,7 @@ const ContactsScreen = () => {
               </View>
             ))}
           </ScrollView>
-        )}
+        {/* )} */}
       </View>
     </LinearGradient>
   );
@@ -626,6 +664,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 7,
     elevation: 10,
+    marginHorizontal: nW(20),
   },
   syncContent: {
     flex: 1,
@@ -915,6 +954,9 @@ const styles = StyleSheet.create({
     color: '#cdd2db',
     fontSize: 14,
   },
+  dropdownDisabled: {
+    opacity: 0.5,
+  },
   dropdownListContainer: {
     maxHeight: 180,
     borderWidth: 1,
@@ -923,6 +965,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#242733',
     marginBottom: 10,
+  },
+  searchInput: {
+    backgroundColor: '#2e323a',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#3A3B40',
+    fontSize: 14,
+    margin: 8,
   },
   deviceName: {
     color: '#FFFFFF',

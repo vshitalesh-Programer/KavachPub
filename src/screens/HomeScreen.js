@@ -1,5 +1,5 @@
 /* eslint-disable no-alert */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView, PermissionsAndroid, Platform, Image } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { normalize } from '../utils/AppFonts';
@@ -25,6 +25,7 @@ const HomeScreen = ({ navigation }) => {
   const [eventCount, setEventCount] = useState(0); // Track if events are received
   const [lastEvent, setLastEvent] = useState(null); // Store last event for debugging
   const [lastHex, setLastHex] = useState(null); // Store last notified hex value
+  const [connectedDeviceId, setConnectedDeviceId] = useState(null); // Track connected device
   const scanTimeoutRef = useRef(null);
   const dispatch = useDispatch();
   const incidents = useSelector(state => state.incidents.incidents);
@@ -82,8 +83,21 @@ const HomeScreen = ({ navigation }) => {
       const hex = value ? value.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
       console.log(`🔔 [BLE] Notify ${peripheral} ${service} ${characteristic}:`, hex);
       setLastHex(hex);
+      
+      // Debug alert when notification data is received
+      Alert.alert(
+        '🔔 Notification Received',
+        `Device: ${peripheral}\nHex Value: ${hex || 'empty'}\nService: ${service}\nCharacteristic: ${characteristic}`,
+        [{ text: 'OK' }]
+      );
+      
       if (hex === '01' || hex === '0x01') {
         console.log('🚨 [BLE] SOS hex detected, triggering SOS');
+        Alert.alert(
+          '🚨 SOS Triggered!',
+          `Hex value "01" detected!\nTriggering emergency SOS...`,
+          [{ text: 'OK' }]
+        );
         handleSOS();
       }
     });
@@ -95,7 +109,93 @@ const HomeScreen = ({ navigation }) => {
     return () => {
       listeners.forEach(l => l.remove());
     };
-  }, []);
+  }, [handleSOS]);
+
+  // Check for already-connected devices on app start
+  useEffect(() => {
+    const checkConnectedDevices = async () => {
+      try {
+        // Wait a bit for BLE to initialize
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Get bonded devices (devices that have been paired before)
+        const bondedDevices = await BleManager.getBondedPeripherals();
+        console.log('🔍 [BLE] Checking bonded devices for already-connected:', bondedDevices.length);
+        
+        // Try to retrieve services for each bonded device to see if it's connected
+        // and has our target service
+        for (const device of bondedDevices) {
+          try {
+            // Try to retrieve services - this will only work if device is connected
+            const services = await BleManager.retrieveServices(device.id);
+            console.log('✅ [BLE] Device is already connected:', device.id, device.name);
+            
+            // Check if device has our target service
+            if (services && services.services) {
+              const hasTargetService = services.services.some(s => {
+                const serviceUuid = s.uuid.toLowerCase().replace(/-/g, '');
+                const targetUuid = SERVICE_UUID.toLowerCase().replace(/-/g, '');
+                return serviceUuid === targetUuid || serviceUuid.includes(targetUuid.slice(4, -4));
+              });
+              
+              if (hasTargetService) {
+                console.log('🎯 [BLE] Found already-connected device with target service:', device.id);
+                setConnectedDeviceId(device.id);
+                Alert.alert(
+                  '🔵 Device Already Connected',
+                  `Device "${device.name || device.id}" is already connected.\nSetting up notifications...`,
+                  [{ text: 'OK' }]
+                );
+                
+                // Start notifications automatically
+                try {
+                  await BleManager.startNotification(device.id, SERVICE_UUID, CHAR_UUID);
+                  console.log('🔔 [BLE] Auto-started notifications for already-connected device');
+                  Alert.alert(
+                    '✅ Notifications Started',
+                    `Notifications setup complete for "${device.name || device.id}".\nListening for hex values...`,
+                    [{ text: 'OK' }]
+                  );
+                  
+                  // Read initial value
+                  try {
+                    const data = await BleManager.read(device.id, SERVICE_UUID, CHAR_UUID);
+                    const hex = data ? data.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
+                    console.log('📖 [BLE] Initial read from already-connected device:', hex);
+                    setLastHex(hex);
+                    Alert.alert(
+                      '📖 Initial Read',
+                      `Received hex value: ${hex || 'empty'}`,
+                      [{ text: 'OK' }]
+                    );
+                    if (hex === '01' || hex === '0x01') {
+                      console.log('🚨 [BLE] SOS hex detected on initial read from connected device');
+                      handleSOS();
+                    }
+                  } catch (readErr) {
+                    console.warn('⚠️ [BLE] Initial read failed for connected device', readErr);
+                    Alert.alert('⚠️ Read Failed', `Failed to read initial value: ${readErr.message}`, [{ text: 'OK' }]);
+                  }
+                } catch (notifyErr) {
+                  console.warn('⚠️ [BLE] Failed to auto-start notification for connected device', notifyErr);
+                  Alert.alert('❌ Notification Failed', `Failed to start notifications: ${notifyErr.message}`, [{ text: 'OK' }]);
+                }
+                break; // Found our device, stop checking
+              }
+            }
+          } catch (err) {
+            // Device is not connected or doesn't have services
+            // This is normal, continue checking other devices
+            console.log('ℹ️ [BLE] Device not connected or no services:', device.id);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ [BLE] Error checking connected devices:', error);
+      }
+    };
+
+    checkConnectedDevices();
+  }, [handleSOS]); // Run when handleSOS is available
 
   const startScan = async () => {
     try {
@@ -223,25 +323,48 @@ const HomeScreen = ({ navigation }) => {
       } else {
         // Default to BLE
         await BluetoothService.connectToDevice(device.id);
+        setConnectedDeviceId(device.id);
+        Alert.alert(
+          '✅ Device Connected',
+          `Successfully connected to "${device.name || device.id}".\nSetting up notifications...`,
+          [{ text: 'OK' }]
+        );
+        
         // Subscribe to notifications for known service/characteristic
         try {
           await BleManager.startNotification(device.id, SERVICE_UUID, CHAR_UUID);
           console.log('🔔 [BLE] Notification started for', SERVICE_UUID, CHAR_UUID);
+          Alert.alert(
+            '✅ Notifications Started',
+            `Notifications setup complete.\nListening for hex values from device...`,
+            [{ text: 'OK' }]
+          );
+          
           // Optionally read once immediately
           try {
             const data = await BleManager.read(device.id, SERVICE_UUID, CHAR_UUID);
             const hex = data ? data.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
             console.log('📖 [BLE] Initial read:', hex);
             setLastHex(hex);
+            Alert.alert(
+              '📖 Initial Read',
+              `Received hex value: ${hex || 'empty'}`,
+              [{ text: 'OK' }]
+            );
+            if (hex === '01' || hex === '0x01') {
+              console.log('🚨 [BLE] SOS hex detected on initial read');
+              handleSOS();
+            }
           } catch (readErr) {
             console.warn('⚠️ [BLE] Initial read failed', readErr);
+            Alert.alert('⚠️ Read Failed', `Failed to read initial value: ${readErr.message}`, [{ text: 'OK' }]);
           }
         } catch (notifyErr) {
           console.warn('⚠️ [BLE] Failed to start notification', notifyErr);
+          Alert.alert('❌ Notification Failed', `Failed to start notifications: ${notifyErr.message}`, [{ text: 'OK' }]);
         }
       }
 
-      alert(`Connected to ${device.name || device.id}`);
       setIsModalVisible(false);
     } catch (error) {
       console.log('Connection failed, trying alternative...', error);
@@ -323,7 +446,7 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
-  const handleSOS = async () => {
+  const handleSOS = useCallback(async () => {
     try {
       console.log('Triggering SOS...');
 
@@ -389,7 +512,7 @@ const HomeScreen = ({ navigation }) => {
     } catch (error) {
       Alert.alert('Error', `Failed to initiate SOS: ${error.message || error}`);
     }
-  };
+  }, [dispatch]);
 
   return (
     <LinearGradient
@@ -424,6 +547,17 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.statLabel}>Incidents</Text>
               <Text style={styles.statValue}>{incidents.length > 0 ? incidents.length : '-'}</Text>
             </View>
+          </View>
+
+          {/* Connection Status Card */}
+          <View style={styles.connectionCard}>
+            <Text style={styles.connectionLabel}>BLE Device Status</Text>
+            <Text style={styles.connectionValue}>
+              {connectedDeviceId ? `✅ Connected (${connectedDeviceId.substring(0, 8)}...)` : '❌ Not Connected'}
+            </Text>
+            {lastHex && (
+              <Text style={styles.connectionHex}>Last Hex: {lastHex}</Text>
+            )}
           </View>
 
           {/* Scan Bluetooth Devices Card */}
@@ -545,6 +679,11 @@ const HomeScreen = ({ navigation }) => {
                 Scanning: {isScanning ? 'Yes' : 'No'} |
                 Devices: {peripherals instanceof Map ? peripherals.size : 0} |
                 Events: {eventCount}
+              </Text>
+              <Text style={styles.debugText}>
+                Connected: {connectedDeviceId ? 'Yes' : 'No'} |
+                Device ID: {connectedDeviceId || 'None'} |
+                Last Hex: {lastHex || 'None'}
               </Text>
               {lastEvent && (
                 <Text style={styles.debugText} numberOfLines={2}>
@@ -716,6 +855,38 @@ const styles = StyleSheet.create({
 
   statLabel: { color: '#ffffff', fontSize: AppFonts.n(10), fontWeight: '500' },
   statValue: { color: 'white', fontSize: AppFonts.n(20), fontWeight: '700' },
+
+  // Connection Status Card
+  connectionCard: {
+    backgroundColor: '#68778f',
+    borderRadius: AppFonts.n(16),
+    padding: AppFonts.n(12),
+    marginBottom: AppFonts.nH(18),
+    marginHorizontal: AppFonts.nW(20),
+    borderWidth: AppFonts.n(1),
+    borderColor: '#94a0b2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+  },
+  connectionLabel: {
+    color: '#ffffff',
+    fontSize: AppFonts.n(10),
+    fontWeight: '500',
+    marginBottom: AppFonts.nH(4),
+  },
+  connectionValue: {
+    color: 'white',
+    fontSize: AppFonts.n(14),
+    fontWeight: '600',
+  },
+  connectionHex: {
+    color: '#cdd2db',
+    fontSize: AppFonts.n(11),
+    marginTop: AppFonts.nH(4),
+  },
 
   // Scan Card
   scanCard: {
