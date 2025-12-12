@@ -1,0 +1,176 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Outer drop shadow for lift -->
+    <filter id="outerShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="black" flood-opacity="0.30"/>
+    </filter>
+
+    <!-- Inner shadow to add depth to the face -->
+    <filter id="innerShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feFlood flood-color="black" flood-opacity="0.35" result="shadowColor"/>
+      <feComposite in="shadowColor" in2="SourceAlpha" operator="in" result="shadow"/>
+      <feGaussianBlur in="shadow" stdDeviation="10" result="shadowBlur"/>
+      <feOffset in="shadowBlur" dx="0" dy="6" result="shadowOffset"/>
+      <feComposite in="SourceGraphic" in2="shadowOffset" operator="over"/>
+    </filter>
+
+    <!-- Front face (white, soft vertical depth) -->
+    <linearGradient id="faceFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="40%" stop-color="#F7F8FA"/>
+      <stop offset="100%" stop-color="#DEE3EA"/>
+    </linearGradient>
+
+    <!-- Metallic frame -->
+    <linearGradient id="metalBorder" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="28%" stop-color="#E4E7EE"/>
+      <stop offset="65%" stop-color="#B2BAC7"/>
+      <stop offset="100%" stop-color="#EDF0F5"/>
+    </linearGradient>
+
+    <!-- Inner groove / bevel line -->
+    <linearGradient id="groove" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#B0B6C3"/>
+      <stop offset="100%" stop-color="#5E6472"/>
+    </linearGradient>
+
+    <!-- Top glossy highlight band -->
+    <linearGradient id="topHighlight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.40"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Very subtle bottom glow (like a rim light) -->
+    <linearGradient id="bottomGlow" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Centered group, no rotation/skew: straight-on, clean -->
+  <g transform="translate(0, 0)">
+    <!-- Outer frame (main silhouette) -->
+    <path
+      d="
+        M256 60
+        L132 104
+        Q114 110 106 124
+        Q98 138 98 158
+        L98 232
+        Q98 288 120 336
+        Q142 384 180 420
+        Q212 450 244 470
+        Q250 474 256 474
+        Q262 474 268 470
+        Q300 450 332 420
+        Q370 384 392 336
+        Q414 288 414 232
+        L414 158
+        Q414 138 406 124
+        Q398 110 380 104
+        Z"
+      fill="#F5F6F9"
+      stroke="url(#metalBorder)"
+      stroke-width="20"
+      stroke-linejoin="round"
+      filter="url(#outerShadow)"
+    />
+
+    <!-- Inner groove inset (gives a machined edge / bevel) -->
+    <path
+      d="
+        M256 94
+        L146 130
+        Q136 134 130 144
+        Q126 152 126 166
+        L126 230
+        Q126 278 144 316
+        Q162 352 192 382
+        Q218 406 242 420
+        Q248 424 256 424
+        Q264 424 270 420
+        Q294 406 320 384
+        Q350 356 368 320
+        Q386 284 386 236
+        L386 170
+        Q386 156 382 148
+        Q378 138 368 134
+        Z"
+      fill="none"
+      stroke="url(#groove)"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.95"
+    />
+
+    <!-- Inner face with inner shadow for depth -->
+    <path
+      d="
+        M256 112
+        L154 146
+        Q146 148 142 156
+        Q138 164 138 176
+        L138 228
+        Q138 266 152 296
+        Q170 334 198 360
+        Q218 378 240 392
+        Q246 396 256 396
+        Q266 396 272 392
+        Q294 378 314 362
+        Q342 338 360 302
+        Q374 274 378 246
+        Q380 236 380 228
+        L380 178
+        Q380 168 376 160
+        Q372 152 364 150
+        Z"
+      fill="url(#faceFill)"
+      stroke="#E3E7EE"
+      stroke-width="4.5"
+      stroke-linejoin="round"
+      filter="url(#innerShadow)"
+    />
+
+    <!-- Top highlight band (adds glossy rim) -->
+    <path
+      d="
+        M256 68
+        L134 106
+        Q126 108 120 114
+        Q142 118 168 122
+        Q196 126 222 128
+        Q238 130 256 130
+        Q274 130 290 128
+        Q316 126 344 122
+        Q370 118 392 114
+        Q386 108 378 106
+        Z"
+      fill="url(#topHighlight)"
+      opacity="0.96"
+    />
+
+    <!-- Subtle bottom glow following lower contour -->
+    <path
+      d="
+        M176 360
+        Q204 388 236 408
+        Q246 414 256 414
+        Q266 414 276 408
+        Q308 388 336 360
+        Q350 346 362 326
+        Q348 334 332 342
+        Q306 354 280 362
+        Q268 366 256 366
+        Q244 366 232 362
+        Q206 354 180 342
+        Q164 334 150 326
+        Q162 346 176 360
+        Z"
+      fill="url(#bottomGlow)"
+      opacity="0.7"
+    />
+  </g>
+</svg>

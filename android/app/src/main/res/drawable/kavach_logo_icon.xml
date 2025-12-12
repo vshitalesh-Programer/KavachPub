@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Center the logo within the 108dp adaptive icon canvas -->
+    <item
+        android:drawable="@drawable/kavach_logo"
+        android:width="72dp"
+        android:height="72dp"
+        android:gravity="center"/>
+</layer-list>

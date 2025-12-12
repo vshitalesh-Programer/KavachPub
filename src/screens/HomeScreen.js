@@ -37,7 +37,28 @@ const HomeScreen = ({ navigation }) => {
   const lastLoggedIncident = incidents.length > 0 ? incidents[0] : null;
 
   useEffect(() => {
-    BluetoothService.initialize();
+    // Initialize BLE service safely
+    const initBLE = async () => {
+      try {
+        // Request permissions first before initializing
+        const hasPermissions = await BluetoothService.requestPermissions();
+        if (hasPermissions) {
+          try {
+            await BluetoothService.initialize();
+            console.log('✅ [BLE] Initialized successfully');
+          } catch (initError) {
+            console.error('🔴 [BLE] Initialization failed:', initError);
+            // Don't crash - app can still work without BLE
+          }
+        } else {
+          console.warn('⚠️ [BLE] Permissions not granted, BLE features will be limited');
+        }
+      } catch (error) {
+        console.error('🔴 [BLE] Failed to check permissions or initialize:', error);
+        // Don't crash the app - gracefully handle the error
+      }
+    };
+    initBLE();
 
     const handleDiscoverPeripheral = (peripheral) => {
       console.log('🔵 [BLE] Discovered peripheral:', JSON.stringify(peripheral, null, 2));
@@ -115,19 +136,45 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     const checkConnectedDevices = async () => {
       try {
+        // First check and request permissions
+        const hasPermissions = await BluetoothService.requestPermissions();
+        if (!hasPermissions) {
+          console.warn('⚠️ [BLE] Permissions not granted, skipping connected device check');
+          return;
+        }
+
         // Wait a bit for BLE to initialize
         await new Promise(resolve => setTimeout(resolve, 1500));
         
         // Get bonded devices (devices that have been paired before)
-        const bondedDevices = await BleManager.getBondedPeripherals();
-        console.log('🔍 [BLE] Checking bonded devices for already-connected:', bondedDevices.length);
+        let bondedDevices = [];
+        try {
+          bondedDevices = await BleManager.getBondedPeripherals();
+          console.log('🔍 [BLE] Checking bonded devices for already-connected:', bondedDevices.length);
+        } catch (permError) {
+          console.warn('⚠️ [BLE] Failed to get bonded devices (permissions?):', permError);
+          return;
+        }
         
         // Try to retrieve services for each bonded device to see if it's connected
         // and has our target service
         for (const device of bondedDevices) {
           try {
             // Try to retrieve services - this will only work if device is connected
-            const services = await BleManager.retrieveServices(device.id);
+            // This can fail if permissions aren't granted or device isn't connected
+            let services;
+            try {
+              services = await BleManager.retrieveServices(device.id);
+            } catch (retrieveError) {
+              // Device is not connected or permission issue
+              console.log('ℹ️ [BLE] Cannot retrieve services for device (not connected or permission issue):', device.id);
+              continue; // Skip to next device
+            }
+            
+            if (!services) {
+              continue; // Skip if no services
+            }
+            
             console.log('✅ [BLE] Device is already connected:', device.id, device.name);
             
             // Check if device has our target service
@@ -186,11 +233,15 @@ const HomeScreen = ({ navigation }) => {
           } catch (err) {
             // Device is not connected or doesn't have services
             // This is normal, continue checking other devices
-            console.log('ℹ️ [BLE] Device not connected or no services:', device.id);
+            console.log('ℹ️ [BLE] Device not connected or no services:', device.id, err.message);
           }
         }
       } catch (error) {
         console.warn('⚠️ [BLE] Error checking connected devices:', error);
+        // Don't crash the app if permission check fails
+        if (error.message && error.message.includes('permission')) {
+          console.warn('⚠️ [BLE] Permission denied, user needs to grant Bluetooth permissions');
+        }
       }
     };
 
@@ -305,6 +356,13 @@ const HomeScreen = ({ navigation }) => {
   const connectToDevice = async (device) => {
     try {
       setIsScanning(false); // Stop scanning before connecting
+
+      // Check permissions before connecting
+      const hasPermissions = await BluetoothService.requestPermissions();
+      if (!hasPermissions) {
+        Alert.alert('Permission Required', 'Bluetooth permissions are required to connect to devices.');
+        return;
+      }
 
       // Check if it's a Classic device (we marked it with 'address' or 'deviceClass' usually, or just check ID format/missing RSSI?)
       // For now, if we have a way to distinguish, great. 
