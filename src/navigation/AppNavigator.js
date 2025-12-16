@@ -5,6 +5,7 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import { useSelector } from 'react-redux';
 
 import LoginScreen from '../screens/LoginScreen';
+import ConnectDeviceScreen from '../screens/ConnectDeviceScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 import IncidentsScreen from '../screens/IncidentsScreen';
@@ -51,6 +52,7 @@ const AppNavigator = () => {
         }}
         initialRouteName={isAuthenticated ? "MainTabs" : "Login"}>
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="ConnectDevice" component={ConnectDeviceScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>

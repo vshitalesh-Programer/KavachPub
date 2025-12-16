@@ -4,10 +4,13 @@ let storage;
 let isMMKV = false;
 
 try {
+  // Try to import and initialize MMKV
+  const { MMKV } = require('react-native-mmkv');
   storage = new MMKV();
   isMMKV = true;
   console.log('[ReduxStorage] MMKV initialized successfully');
 } catch (error) {
+  // MMKV not available (e.g., during remote debugging) - fall back to AsyncStorage
   console.warn("MMKV failed to initialize (likely due to Remote Debugging). Falling back to AsyncStorage.", error);
   storage = AsyncStorage;
   isMMKV = false;

@@ -78,12 +78,21 @@ class ApiService {
   // --- Authentication ---
   async googleLogin(idToken) {
     const response = await this.api.post(`${AUTH_PREFIX}/sign-in/social`, {
-      token: idToken,
       provider: 'google',
+      idToken: {
+        token: idToken,
+      },
     });
     const data = this.unwrapResponse(response);
-    if (data && data.token) {
-      this.setToken(data.token);
+    // Store the access token from the response
+    // Normalize to always have 'token' field for consistency
+    const accessToken = data?.token || data?.accessToken;
+    if (accessToken) {
+      this.setToken(accessToken);
+      // Normalize response to always have 'token' field
+      if (data && !data.token && data.accessToken) {
+        data.token = data.accessToken;
+      }
     }
     return data;
   }
@@ -139,6 +148,26 @@ class ApiService {
   async triggerEmergency(data) {
     // data: { latitude, longitude, deviceId, deviceInfo }
     const response = await this.api.post(`${API_V1_PREFIX}/trigger`, data);
+    return this.unwrapResponse(response);
+  }
+
+  async getTriggerHistory() {
+    const response = await this.api.get(`${API_V1_PREFIX}/trigger/history`);
+    return this.unwrapResponse(response); // Expecting { triggers: [] } or []
+  }
+
+  // --- Devices ---
+  async getDevices() {
+    const response = await this.api.get(`${API_V1_PREFIX}/devices`);
+    return this.unwrapResponse(response); // Expecting { devices: [] } or []
+  }
+
+  async createDevice(deviceData) {
+    // deviceData: { deviceId: string } - deviceId will be sent as array
+    // API expects: { deviceId: [""] }
+    const response = await this.api.post(`${API_V1_PREFIX}/devices`, {
+      deviceId: [deviceData.deviceId || deviceData.id || ''],
+    });
     return this.unwrapResponse(response);
   }
 }

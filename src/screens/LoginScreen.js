@@ -19,6 +19,7 @@ import { normalize } from '../utils/AppFonts';
 
 import { loginRequest, signupRequest } from '../redux/slices/authSlice';
 import { useDispatch, useSelector } from 'react-redux';
+import Svg, { Path } from 'react-native-svg';
 
 const PLACEHOLDER_COLOR = '#9CA3AF';
 
@@ -34,14 +35,15 @@ const LoginScreen = ({navigation}) => {
   useEffect(() => {
     // Configure Google Sign-In
     GoogleSignin.configure({
-      webClientId: '999458970644-o52123eaouv9jibt74ki8c4d7uhclo6k.apps.googleusercontent.com',
+      webClientId: '217252895046-ru6cksbpustt2ecpvuhc45kg96gst5o4.apps.googleusercontent.com',
       offlineAccess: true, // if you want to access Google API on behalf of the user FROM YOUR SERVER
+      forceCodeForRefreshToken: true, // Always show account picker
     });
   }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigation.replace('MainTabs');
+      navigation.replace('ConnectDevice');
     }
   }, [isAuthenticated, navigation]);
 
@@ -75,6 +77,33 @@ const LoginScreen = ({navigation}) => {
       // Check if Google Play Services is available
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   
+      // Check if user is already signed in and sign out to force account picker
+      // Note: isSignedIn() may not be available in all versions, so we wrap it in try-catch
+      try {
+        if (GoogleSignin.isSignedIn && typeof GoogleSignin.isSignedIn === 'function') {
+          const isSignedIn = await GoogleSignin.isSignedIn();
+          if (isSignedIn) {
+            try {
+              await GoogleSignin.signOut();
+              console.log('[Google Sign-In] Signed out previous user to show account picker');
+            } catch (signOutError) {
+              console.warn('[Google Sign-In] Error signing out:', signOutError);
+              // Continue anyway - signIn() should still work
+            }
+          }
+        }
+      } catch (checkError) {
+        // isSignedIn() not available, try to sign out anyway
+        try {
+          await GoogleSignin.signOut();
+          console.log('[Google Sign-In] Signed out to show account picker');
+        } catch (signOutError) {
+          // Ignore - will proceed with signIn() anyway
+          console.log('[Google Sign-In] Proceeding with sign in');
+        }
+      }
+  
+      // Sign in - this will always show the account picker popup
       const userInfo = await GoogleSignin.signIn();
   
       console.log("Google Sign-In Success:", JSON.stringify(userInfo, null, 2));
@@ -137,7 +166,7 @@ const LoginScreen = ({navigation}) => {
           <View style={styles.logoSection}>
             <View style={styles.logoContainer}>
               <View style={styles.logoIcon}>
-                <Image source={require('../assets/images/kavach-shield.png')} style={styles.logoIcon} />
+                <Image source={require('../assets/images/kavach-shield-old.png')} style={styles.logoIcon} />
               </View>
             </View>
             <Text style={styles.appName}>Kavach</Text>
@@ -211,14 +240,14 @@ const LoginScreen = ({navigation}) => {
               </TouchableOpacity>
 
               {/* Divider */}
-              {/* <View style={styles.dividerContainer}>
+              <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>OR</Text>
                 <View style={styles.dividerLine} />
-              </View> */}
+              </View>
 
               {/* Google Sign-In Button */}
-              {/* <TouchableOpacity 
+              <TouchableOpacity 
                 style={[styles.googleButton, isLoading && styles.googleButtonDisabled]} 
                 onPress={handleGoogleSignIn}
                 disabled={isLoading}>
@@ -249,7 +278,7 @@ const LoginScreen = ({navigation}) => {
                     <Text style={styles.googleButtonText}>Continue with Google</Text>
                   </>
                 )}
-              </TouchableOpacity> */}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -276,7 +305,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingVertical: 100,
+    // paddingVertical: 100,
   },
   logoSection: {
     alignItems: 'center',

@@ -1,353 +1,369 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-alert */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, NativeEventEmitter, NativeModules, Alert, ScrollView, PermissionsAndroid, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, Alert, ScrollView, PermissionsAndroid, Platform, Image } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
-import { normalize } from '../utils/AppFonts';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
-import BleManager from 'react-native-ble-manager';
 import Geolocation from 'react-native-geolocation-service';
 import DeviceInfo from 'react-native-device-info';
 import { useDispatch, useSelector } from 'react-redux';
 import { addIncident } from '../redux/slices/incidentSlice';
 import AppFonts from '../utils/AppFonts';
-
-const BleManagerModule = NativeModules.BleManager;
-const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
-const SERVICE_UUID = '12345678-1234-5678-1234-56789ABCDEF0';
-const CHAR_UUID = '12345678-1234-5678-1234-56789ABCDEF1';
+import { SERVICE_UUID, CHAR_UUID, DEVICE_NAME } from '../constants/BluetoothConstants';
 
 const HomeScreen = ({ navigation }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [peripherals, setPeripherals] = useState(new Map());
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLogModalVisible, setIsLogModalVisible] = useState(false);
-  const [eventCount, setEventCount] = useState(0); // Track if events are received
-  const [lastEvent, setLastEvent] = useState(null); // Store last event for debugging
-  const [lastHex, setLastHex] = useState(null); // Store last notified hex value
-  const [connectedDeviceId, setConnectedDeviceId] = useState(null); // Track connected device
+  const [lastHex, setLastHex] = useState(null);
+  const [connectedDeviceId, setConnectedDeviceId] = useState(null);
+  const [triggerHistory, setTriggerHistory] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [userDevices, setUserDevices] = useState([]);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const monitorSubscriptionRef = useRef(null);
   const scanTimeoutRef = useRef(null);
+  const scanSubscriptionRef = useRef(null);
   const dispatch = useDispatch();
   const incidents = useSelector(state => state.incidents.incidents);
   const contacts = useSelector(state => state.contacts.contacts) || [];
+  const connectedDeviceFromRedux = useSelector(state => state.device.connectedDevice);
 
   // Flatten contacts if they are sectioned
   const contactCount = contacts.reduce((acc, section) => acc + (section.data ? section.data.length : 0), 0);
 
   const lastLoggedIncident = incidents.length > 0 ? incidents[0] : null;
+  
+  // Get last trigger from API history (prefer API data over local incidents)
+  const lastTrigger = triggerHistory.length > 0 ? triggerHistory[0] : null;
 
+  // Fetch trigger history and devices on mount
   useEffect(() => {
-    // Initialize BLE service safely
+    const fetchTriggerHistory = async () => {
+      try {
+        setIsLoadingHistory(true);
+        const history = await ApiService.getTriggerHistory();
+        
+        // Handle different response formats
+        const historyList = Array.isArray(history) 
+          ? history 
+          : (history?.triggers || history?.data || history?.history || []);
+        
+        // Sort by date (most recent first) if the API doesn't return sorted data
+        const sortedHistory = Array.isArray(historyList) 
+          ? [...historyList].sort((a, b) => {
+              const dateA = new Date(a.createdAt || a.timestamp || a.date || 0);
+              const dateB = new Date(b.createdAt || b.timestamp || b.date || 0);
+              return dateB - dateA;
+            })
+          : [];
+        
+        setTriggerHistory(sortedHistory);
+        console.log('[HomeScreen] Trigger history loaded:', sortedHistory.length, 'items');
+      } catch (error) {
+        console.error('[HomeScreen] Error fetching trigger history:', error);
+        // Don't show error to user, just use local incidents as fallback
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    const fetchDevices = async () => {
+      try {
+        setIsLoadingDevices(true);
+        const devicesData = await ApiService.getDevices();
+        
+        // Handle different response formats
+        const devicesList = Array.isArray(devicesData) 
+          ? devicesData 
+          : (devicesData?.devices || devicesData?.data || []);
+        
+        setUserDevices(devicesList || []);
+        console.log('[HomeScreen] Devices loaded:', devicesList.length);
+      } catch (error) {
+        console.error('[HomeScreen] Error fetching devices:', error);
+        setUserDevices([]);
+      } finally {
+        setIsLoadingDevices(false);
+      }
+    };
+
+    fetchTriggerHistory();
+    fetchDevices();
+  }, []);
+
+  // Initialize BLE on mount
+  useEffect(() => {
     const initBLE = async () => {
       try {
-        // Request permissions first before initializing
         const hasPermissions = await BluetoothService.requestPermissions();
         if (hasPermissions) {
-          try {
-            await BluetoothService.initialize();
-            console.log('✅ [BLE] Initialized successfully');
-          } catch (initError) {
-            console.error('🔴 [BLE] Initialization failed:', initError);
-            // Don't crash - app can still work without BLE
-          }
+          await BluetoothService.initialize();
+          console.log('✅ [BLE-PLX] Initialized successfully');
         } else {
-          console.warn('⚠️ [BLE] Permissions not granted, BLE features will be limited');
+          console.warn('⚠️ [BLE-PLX] Permissions not granted');
         }
       } catch (error) {
-        console.error('🔴 [BLE] Failed to check permissions or initialize:', error);
-        // Don't crash the app - gracefully handle the error
+        console.error('🔴 [BLE-PLX] Initialization failed:', error);
       }
     };
     initBLE();
 
-    const handleDiscoverPeripheral = (peripheral) => {
-      console.log('🔵 [BLE] Discovered peripheral:', JSON.stringify(peripheral, null, 2));
-      if (!peripheral || !peripheral.id) {
-        console.warn('⚠️ [BLE] Invalid peripheral data:', peripheral);
+    return () => {
+      // Cleanup on unmount
+      if (scanSubscriptionRef.current) {
+        BluetoothService.stopScan();
+      }
+      if (monitorSubscriptionRef.current) {
+        monitorSubscriptionRef.current.remove();
+      }
+    };
+  }, []);
+
+  // Check for already-connected devices on app start and when screen is focused
+  const checkConnectedDevices = useCallback(async () => {
+    try {
+      const hasPermissions = await BluetoothService.requestPermissions();
+      if (!hasPermissions) {
+        console.warn('⚠️ [BLE-PLX] Permissions not granted');
         return;
       }
-      setPeripherals((map) => {
-        // Ensure map is a Map instance
-        const currentMap = map instanceof Map ? map : new Map();
-        const newMap = new Map(currentMap);
-        newMap.set(peripheral.id, {
-          ...peripheral,
-          type: peripheral.type || 'ble',
-          isBonded: peripheral.isBonded || false,
-        });
-        console.log('✅ [BLE] Updated peripherals count:', newMap.size, 'Device:', peripheral.name || peripheral.id);
-        return newMap;
-      });
-    };
 
-    const handleStopScan = () => {
-      setIsScanning(false);
-      console.log('Scan stopped');
-    };
-
-
-    const discoverListener = bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', (data) => {
-
-      // Track events
-      setEventCount(prev => prev + 1);
-      setLastEvent(data);
-
-      handleDiscoverPeripheral(data);
-    });
-
-    const stopScanListener = bleManagerEmitter.addListener('BleManagerStopScan', () => {
-      console.log('🟡 [BLE] ===== BleManagerStopScan EVENT RECEIVED =====');
-      handleStopScan();
-    });
-
-    const updateListener = bleManagerEmitter.addListener('BleManagerDidUpdateValueForCharacteristic', ({ value, peripheral, characteristic, service }) => {
-      const hex = value ? value.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
-      console.log(`🔔 [BLE] Notify ${peripheral} ${service} ${characteristic}:`, hex);
-      setLastHex(hex);
-      
-      // Debug alert when notification data is received
-      Alert.alert(
-        '🔔 Notification Received',
-        `Device: ${peripheral}\nHex Value: ${hex || 'empty'}\nService: ${service}\nCharacteristic: ${characteristic}`,
-        [{ text: 'OK' }]
-      );
-      
-      if (hex === '01' || hex === '0x01') {
-        console.log('🚨 [BLE] SOS hex detected, triggering SOS');
-        Alert.alert(
-          '🚨 SOS Triggered!',
-          `Hex value "01" detected!\nTriggering emergency SOS...`,
-          [{ text: 'OK' }]
-        );
-        handleSOS();
-      }
-    });
-
-    const listeners = [discoverListener, stopScanListener, updateListener];
-    console.log('✅ [BLE] Event listeners registered:', listeners.length);
-    console.log('✅ [BLE] Listening for: BleManagerDiscoverPeripheral, BleManagerStopScan, BleManagerDidUpdateValueForCharacteristic');
-
-    return () => {
-      listeners.forEach(l => l.remove());
-    };
-  }, [handleSOS]);
-
-  // Check for already-connected devices on app start
-  useEffect(() => {
-    const checkConnectedDevices = async () => {
-      try {
-        // First check and request permissions
-        const hasPermissions = await BluetoothService.requestPermissions();
-        if (!hasPermissions) {
-          console.warn('⚠️ [BLE] Permissions not granted, skipping connected device check');
-          return;
-        }
-
-        // Wait a bit for BLE to initialize
-        await new Promise(resolve => setTimeout(resolve, 1500));
+      // Check Redux state first
+      if (connectedDeviceFromRedux?.deviceId || connectedDeviceFromRedux?.id) {
+        const deviceId = connectedDeviceFromRedux.deviceId || connectedDeviceFromRedux.id;
+        console.log('[HomeScreen] Found device in Redux:', deviceId);
         
-        // Get bonded devices (devices that have been paired before)
-        let bondedDevices = [];
+        // Verify it's actually connected via Bluetooth
         try {
-          bondedDevices = await BleManager.getBondedPeripherals();
-          console.log('🔍 [BLE] Checking bonded devices for already-connected:', bondedDevices.length);
-        } catch (permError) {
-          console.warn('⚠️ [BLE] Failed to get bonded devices (permissions?):', permError);
-          return;
+          const connectedDevices = await BluetoothService.getConnectedDevices([SERVICE_UUID]);
+          const isActuallyConnected = connectedDevices.some(
+            d => (d.id === deviceId || d.id === connectedDeviceFromRedux.id) &&
+                 d.name && d.name.toLowerCase().includes(DEVICE_NAME.toLowerCase())
+          );
+          
+          if (isActuallyConnected) {
+            setConnectedDeviceId(deviceId);
+            console.log('[HomeScreen] Device confirmed connected via Bluetooth');
+            return;
+          } else {
+            // Device in Redux but not actually connected - clear it
+            console.log('[HomeScreen] Device in Redux but not actually connected');
+            setConnectedDeviceId(null);
+          }
+        } catch (error) {
+          console.warn('[HomeScreen] Error verifying connection:', error);
         }
+      }
+
+      // Check for connected devices with our service UUID
+      const connectedDevices = await BluetoothService.getConnectedDevices([SERVICE_UUID]);
+      
+      for (const device of connectedDevices) {
+        // Filter by name "Kavach"
+        const nameMatch = device.name && device.name.toLowerCase().includes(DEVICE_NAME.toLowerCase());
         
-        // Try to retrieve services for each bonded device to see if it's connected
-        // and has our target service
-        for (const device of bondedDevices) {
-          try {
-            // Try to retrieve services - this will only work if device is connected
-            // This can fail if permissions aren't granted or device isn't connected
-            let services;
+        if (nameMatch) {
+          console.log('🎯 [BLE-PLX] Found already-connected Kavach device:', device.id);
+          setConnectedDeviceId(device.id);
+          
+          // Setup notifications if not already set up
+          if (!monitorSubscriptionRef.current) {
             try {
-              services = await BleManager.retrieveServices(device.id);
-            } catch (retrieveError) {
-              // Device is not connected or permission issue
-              console.log('ℹ️ [BLE] Cannot retrieve services for device (not connected or permission issue):', device.id);
-              continue; // Skip to next device
+              await setupNotifications(device);
+            } catch (notifyErr) {
+              console.warn('⚠️ [BLE-PLX] Failed to setup notifications:', notifyErr);
             }
-            
-            if (!services) {
-              continue; // Skip if no services
+          }
+          break;
+        }
+      }
+      
+      // If no devices found, clear the connection state
+      if (connectedDevices.length === 0) {
+        setConnectedDeviceId(null);
+      }
+    } catch (error) {
+      console.warn('⚠️ [BLE-PLX] Error checking connected devices:', error);
+    }
+  }, [connectedDeviceFromRedux]);
+
+  // Check on mount
+  useEffect(() => {
+    // Delay to allow BLE to initialize
+    const timer = setTimeout(() => {
+      checkConnectedDevices();
+    }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Check when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Check connection status when screen is focused
+      const timer = setTimeout(() => {
+        checkConnectedDevices();
+      }, 500);
+      return () => clearTimeout(timer);
+    }, [checkConnectedDevices])
+  );
+
+  // Format trigger date for display
+  const formatTriggerDate = (trigger) => {
+    if (!trigger) return 'N/A';
+    
+    // Try different date fields
+    const dateStr = trigger.createdAt || trigger.timestamp || trigger.date || trigger.time;
+    if (!dateStr) return 'Unknown date';
+    
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        // If it's already a formatted string, return it
+        return dateStr;
+      }
+      
+      // Format as: "MMM DD, YYYY HH:MM"
+      const options = { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      };
+      return date.toLocaleDateString('en-US', options);
+    } catch (error) {
+      return dateStr;
+    }
+  };
+
+  const setupNotifications = async (device) => {
+    try {
+      // Discover services if not already done
+      await device.discoverAllServicesAndCharacteristics();
+      
+      // Monitor characteristic for notifications
+      const subscription = BluetoothService.monitorCharacteristic(
+        device,
+        SERVICE_UUID,
+        CHAR_UUID,
+        (hex, characteristic) => {
+          console.log(`🔔 [BLE-PLX] Notification received: ${hex}`);
+          setLastHex(hex);
+          
+          if (__DEV__) {
+            Alert.alert(
+              '🔔 Notification Received',
+              `Device: ${device.name || device.id}\nHex Value: ${hex || 'empty'}`,
+              [{ text: 'OK' }]
+            );
+          }
+          
+          if (hex === '01' || hex === '0x01') {
+            console.log('🚨 [BLE-PLX] SOS hex detected, triggering SOS');
+            if (__DEV__) {
+              Alert.alert(
+                '🚨 SOS Triggered!',
+                `Hex value "01" detected!\nTriggering emergency SOS...`,
+                [{ text: 'OK' }]
+              );
             }
-            
-            console.log('✅ [BLE] Device is already connected:', device.id, device.name);
-            
-            // Check if device has our target service
-            if (services && services.services) {
-              const hasTargetService = services.services.some(s => {
-                const serviceUuid = s.uuid.toLowerCase().replace(/-/g, '');
-                const targetUuid = SERVICE_UUID.toLowerCase().replace(/-/g, '');
-                return serviceUuid === targetUuid || serviceUuid.includes(targetUuid.slice(4, -4));
-              });
-              
-              if (hasTargetService) {
-                console.log('🎯 [BLE] Found already-connected device with target service:', device.id);
-                setConnectedDeviceId(device.id);
-                Alert.alert(
-                  '🔵 Device Already Connected',
-                  `Device "${device.name || device.id}" is already connected.\nSetting up notifications...`,
-                  [{ text: 'OK' }]
-                );
-                
-                // Start notifications automatically
-                try {
-                  await BleManager.startNotification(device.id, SERVICE_UUID, CHAR_UUID);
-                  console.log('🔔 [BLE] Auto-started notifications for already-connected device');
-                  Alert.alert(
-                    '✅ Notifications Started',
-                    `Notifications setup complete for "${device.name || device.id}".\nListening for hex values...`,
-                    [{ text: 'OK' }]
-                  );
-                  
-                  // Read initial value
-                  try {
-                    const data = await BleManager.read(device.id, SERVICE_UUID, CHAR_UUID);
-                    const hex = data ? data.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
-                    console.log('📖 [BLE] Initial read from already-connected device:', hex);
-                    setLastHex(hex);
-                    Alert.alert(
-                      '📖 Initial Read',
-                      `Received hex value: ${hex || 'empty'}`,
-                      [{ text: 'OK' }]
-                    );
-                    if (hex === '01' || hex === '0x01') {
-                      console.log('🚨 [BLE] SOS hex detected on initial read from connected device');
-                      handleSOS();
-                    }
-                  } catch (readErr) {
-                    console.warn('⚠️ [BLE] Initial read failed for connected device', readErr);
-                    Alert.alert('⚠️ Read Failed', `Failed to read initial value: ${readErr.message}`, [{ text: 'OK' }]);
-                  }
-                } catch (notifyErr) {
-                  console.warn('⚠️ [BLE] Failed to auto-start notification for connected device', notifyErr);
-                  Alert.alert('❌ Notification Failed', `Failed to start notifications: ${notifyErr.message}`, [{ text: 'OK' }]);
-                }
-                break; // Found our device, stop checking
-              }
-            }
-          } catch (err) {
-            // Device is not connected or doesn't have services
-            // This is normal, continue checking other devices
-            console.log('ℹ️ [BLE] Device not connected or no services:', device.id, err.message);
+            handleSOS();
           }
         }
-      } catch (error) {
-        console.warn('⚠️ [BLE] Error checking connected devices:', error);
-        // Don't crash the app if permission check fails
-        if (error.message && error.message.includes('permission')) {
-          console.warn('⚠️ [BLE] Permission denied, user needs to grant Bluetooth permissions');
-        }
+      );
+      
+      monitorSubscriptionRef.current = subscription;
+      console.log('✅ [BLE-PLX] Notifications setup complete');
+      
+      if (__DEV__) {
+        Alert.alert(
+          '✅ Notifications Started',
+          `Notifications setup complete.\nListening for hex values...`,
+          [{ text: 'OK' }]
+        );
       }
-    };
 
-    checkConnectedDevices();
-  }, [handleSOS]); // Run when handleSOS is available
+      // Read initial value
+      try {
+        const hex = await BluetoothService.readCharacteristic(device, SERVICE_UUID, CHAR_UUID);
+        console.log('📖 [BLE-PLX] Initial read:', hex);
+        setLastHex(hex);
+        if (__DEV__) {
+          Alert.alert('📖 Initial Read', `Received hex value: ${hex || 'empty'}`, [{ text: 'OK' }]);
+        }
+        if (hex === '01' || hex === '0x01') {
+          console.log('🚨 [BLE-PLX] SOS hex detected on initial read');
+          handleSOS();
+        }
+      } catch (readErr) {
+        console.warn('⚠️ [BLE-PLX] Initial read failed:', readErr);
+      }
+    } catch (error) {
+      console.error('🔴 [BLE-PLX] Setup notifications failed:', error);
+      throw error;
+    }
+  };
 
   const startScan = async () => {
     try {
-      console.log('🟢 [BLE] Starting scan...');
+      console.log('🟢 [BLE-PLX] Starting scan...');
       const hasPermissions = await BluetoothService.requestPermissions();
-      console.log('🟢 [BLE] Permissions granted:', hasPermissions);
-      if (hasPermissions) {
-        // Ensure previous timeout/scan is cleared
-        if (scanTimeoutRef.current) {
-          clearTimeout(scanTimeoutRef.current);
-          scanTimeoutRef.current = null;
-        }
-        try {
-          await BleManager.stopScan();
-          console.log('🟢 [BLE] Stopped any previous scan before restart');
-        } catch (e) {
-          // ignore
-        }
-
-        setPeripherals(new Map());
-        setEventCount(0); // Reset event counter
-        setLastEvent(null); // Reset last event
-        setIsScanning(true);
-
-        // Fetch bonded classic devices and discover nearby classic devices
-        BluetoothService.scanClassicDevices().then(({ bonded, discovered }) => {
-          console.log('🔵 [BT Classic] Bonded:', bonded.length, 'Discovered:', discovered.length);
-          setPeripherals((prevMap) => {
-            const newMap = new Map(prevMap);
-            [...bonded, ...discovered].forEach(device => {
-              if (device?.id) {
-                newMap.set(device.id, {
-                  ...device,
-                  type: 'classic',
-                  isBonded: !!device.isBonded,
-                });
-              }
-            });
-            return newMap;
-          });
-        });
-
-        // Trigger Classic Discovery (unpaired) in background
-        console.log('🟢 [Classic] Calling scanClassic...');
-        BluetoothService.scanClassic().then(classicDevices => {
-          console.log('🔵 [Classic] detailed results:', classicDevices.length);
-          if (classicDevices.length > 0) {
-            setPeripherals((prevMap) => {
-              const newMap = new Map(prevMap);
-              classicDevices.forEach(device => {
-                // classic device often has 'address' instead of 'id', but verify lib output
-                const id = device.address || device.id;
-                if (id) {
-                  // Prefer existing entry if it has more info (like from bonded list)
-                  // But update it if we found it again.
-                  // Actually, let's just add it.
-                  newMap.set(id, {
-                    id: id,
-                    name: device.name || 'Unknown Classic Device',
-                    address: device.address, // Keep address for Classic distinction
-                    class: device.class,
-                    rssi: device.rssi // Might be undefined
-                  });
-                }
-              });
-              return newMap;
-            });
-          }
-        });
-
-        // Start the scan
-        console.log('🟢 [BLE] Calling scanForDevices...');
-        await BluetoothService.scanForDevices(20); // 20 seconds
-        console.log('🟢 [BLE] Scan initiated, waiting for devices...');
-        console.log('🟢 [BLE] Event listeners should be active. Waiting for BleManagerDiscoverPeripheral events...');
-
-        // Auto-stop scanning after duration
-        scanTimeoutRef.current = setTimeout(async () => {
-          console.log('🟡 [BLE] Auto-stopping scan after timeout');
-          try {
-            await BleManager.stopScan();
-            console.log('🟡 [BLE] Scan stopped manually');
-          } catch (e) {
-            console.log('🟡 [BLE] Error stopping scan:', e);
-          }
-          setIsScanning(false);
-
-          // Log final count
-          setPeripherals((map) => {
-            const currentMap = map instanceof Map ? map : new Map();
-            console.log('🟡 [BLE] Final device count:', currentMap.size);
-            return currentMap;
-          });
-          scanTimeoutRef.current = null;
-        }, 20000); // 20 seconds
-      } else {
-        console.warn('🔴 [BLE] Bluetooth permissions denied');
+      if (!hasPermissions) {
         Alert.alert('Permission Required', 'Bluetooth permissions are required to scan for devices.');
+        return;
       }
+
+      // Clear previous scan
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+        scanTimeoutRef.current = null;
+      }
+      if (scanSubscriptionRef.current) {
+        BluetoothService.stopScan();
+      }
+
+      setPeripherals(new Map());
+      setIsScanning(true);
+
+      // Start scanning with service UUID and name filter
+      const deviceMap = new Map();
+      const subscription = await BluetoothService.scanForDevices(
+        SERVICE_UUID, 
+        DEVICE_NAME,
+        (error, device) => {
+          if (error) {
+            console.error('🔴 [BLE-PLX] Scan error:', error);
+            return;
+          }
+
+          if (device) {
+            console.log('✅ [BLE-PLX] Found Kavach device:', device.name || device.id, device.id);
+            deviceMap.set(device.id, {
+              id: device.id,
+              name: device.name || 'Kavach Device',
+              rssi: device.rssi,
+              type: 'ble',
+            });
+            setPeripherals(new Map(deviceMap));
+          }
+        }
+      );
+      scanSubscriptionRef.current = subscription;
+
+      // Auto-stop after 20 seconds
+      scanTimeoutRef.current = setTimeout(() => {
+        console.log('🟡 [BLE-PLX] Auto-stopping scan after timeout');
+        BluetoothService.stopScan();
+        setIsScanning(false);
+        scanTimeoutRef.current = null;
+      }, 20000);
     } catch (error) {
-      console.error('🔴 [BLE] Scan error:', error);
+      console.error('🔴 [BLE-PLX] Scan error:', error);
       setIsScanning(false);
       Alert.alert('Scan Failed', `Scan failed: ${error.message || error}`);
     }
@@ -355,87 +371,48 @@ const HomeScreen = ({ navigation }) => {
 
   const connectToDevice = async (device) => {
     try {
-      setIsScanning(false); // Stop scanning before connecting
+      setIsScanning(false);
+      BluetoothService.stopScan();
 
-      // Check permissions before connecting
+      console.log('🔵 [BLE-PLX] Attempting to connect to device:', device.id, device.name);
+
       const hasPermissions = await BluetoothService.requestPermissions();
       if (!hasPermissions) {
         Alert.alert('Permission Required', 'Bluetooth permissions are required to connect to devices.');
         return;
       }
 
-      // Check if it's a Classic device (we marked it with 'address' or 'deviceClass' usually, or just check ID format/missing RSSI?)
-      // For now, if we have a way to distinguish, great. 
-      // RNBluetoothClassic devices usually have `address` and `deviceClass`. BleManager devices use `id` (UUID on iOS, Mac on Android).
-      // Let's assume if it came from our scanClassic merge, it might be distinguishable.
-      // But actually, `connectToClassicDevice` handles the classic connection. 
-      // We can try Classic connection if it looks like a classic device, or try BLE if it fails?
+      // Connect to device
+      const connectedDeviceObj = await BluetoothService.connectToDevice(device.id);
+      console.log('✅ [BLE-PLX] Connected successfully');
+      
+      setConnectedDeviceId(device.id);
 
-      // Simple heuristic: If it was found via Classic scan, we probably stored extra props? 
-      // Or we can just try one then the other? Not ideal.
-      // Let's rely on how we stored it. 
+      Alert.alert(
+        '✅ Device Connected',
+        `Successfully connected to "${device.name || device.id}".\nSetting up notifications...`,
+        [{ text: 'OK' }]
+      );
 
-      if (device.address && !device.advertising) {
-        // Likely a classic device from RNBluetoothClassic (which returns address, name, deviceClass)
-        await BluetoothService.connectToClassicDevice(device.id); // device.id is address in our map
-      } else {
-        // Default to BLE
-        await BluetoothService.connectToDevice(device.id);
-        setConnectedDeviceId(device.id);
-        Alert.alert(
-          '✅ Device Connected',
-          `Successfully connected to "${device.name || device.id}".\nSetting up notifications...`,
-          [{ text: 'OK' }]
-        );
-        
-        // Subscribe to notifications for known service/characteristic
-        try {
-          await BleManager.startNotification(device.id, SERVICE_UUID, CHAR_UUID);
-          console.log('🔔 [BLE] Notification started for', SERVICE_UUID, CHAR_UUID);
-          Alert.alert(
-            '✅ Notifications Started',
-            `Notifications setup complete.\nListening for hex values from device...`,
-            [{ text: 'OK' }]
-          );
-          
-          // Optionally read once immediately
-          try {
-            const data = await BleManager.read(device.id, SERVICE_UUID, CHAR_UUID);
-            const hex = data ? data.map(b => ('0' + b.toString(16)).slice(-2)).join('') : '';
-            console.log('📖 [BLE] Initial read:', hex);
-            setLastHex(hex);
-            Alert.alert(
-              '📖 Initial Read',
-              `Received hex value: ${hex || 'empty'}`,
-              [{ text: 'OK' }]
-            );
-            if (hex === '01' || hex === '0x01') {
-              console.log('🚨 [BLE] SOS hex detected on initial read');
-              handleSOS();
-            }
-          } catch (readErr) {
-            console.warn('⚠️ [BLE] Initial read failed', readErr);
-            Alert.alert('⚠️ Read Failed', `Failed to read initial value: ${readErr.message}`, [{ text: 'OK' }]);
-          }
-        } catch (notifyErr) {
-          console.warn('⚠️ [BLE] Failed to start notification', notifyErr);
-          Alert.alert('❌ Notification Failed', `Failed to start notifications: ${notifyErr.message}`, [{ text: 'OK' }]);
-        }
-      }
+      // Setup notifications
+      await setupNotifications(connectedDeviceObj);
 
       setIsModalVisible(false);
     } catch (error) {
-      console.log('Connection failed, trying alternative...', error);
-      // Fallback: If one failed, maybe try the other? 
-      // For now just alert error
-      alert(`Connection failed: ${error.message || error}`);
+      console.error('🔴 [BLE-PLX] Connection failed:', error);
+      const errorMsg = error.message || error.toString() || 'Unknown error';
+      Alert.alert(
+        'Connection Failed',
+        `Failed to connect to device:\n${errorMsg}\n\nDevice: ${device.name || device.id}\n\nPlease ensure:\n- Device is powered on\n- Device is in range\n- Device is not already connected to another app`,
+        [{ text: 'OK' }]
+      );
     }
   };
 
   const handleReconnect = async () => {
-    console.log('🟢 [BLE] Reconnect/Scan pressed: resetting state and restarting scan');
+    console.log('🟢 [BLE-PLX] Reconnect/Scan pressed');
     try {
-      await BleManager.stopScan();
+      BluetoothService.stopScan();
     } catch (e) {
       // ignore
     }
@@ -444,16 +421,14 @@ const HomeScreen = ({ navigation }) => {
       scanTimeoutRef.current = null;
     }
     setPeripherals(new Map());
-    setEventCount(0);
-    setLastEvent(null);
     setIsScanning(false);
     startScan();
   };
 
   const handleCloseModal = async () => {
-    console.log('🟢 [BLE] Close modal pressed: stopping scan and resetting state');
+    console.log('🟢 [BLE-PLX] Close modal pressed');
     try {
-      await BleManager.stopScan();
+      BluetoothService.stopScan();
     } catch (e) {
       // ignore
     }
@@ -463,15 +438,12 @@ const HomeScreen = ({ navigation }) => {
     }
     setIsScanning(false);
     setPeripherals(new Map());
-    setEventCount(0);
-    setLastEvent(null);
     setIsModalVisible(false);
   };
 
   const openScanModal = async () => {
-    // Do not start scanning here—just open the modal and reset state
     try {
-      await BleManager.stopScan();
+      BluetoothService.stopScan();
     } catch (e) {
       // ignore
     }
@@ -480,26 +452,21 @@ const HomeScreen = ({ navigation }) => {
       scanTimeoutRef.current = null;
     }
     setPeripherals(new Map());
-    setEventCount(0);
-    setLastEvent(null);
     setIsScanning(false);
     setIsModalVisible(true);
+    // Start scanning when modal opens
+    startScan();
   };
 
   const renderDeviceItem = ({ item }) => {
-    const isClassic = item?.type === 'classic';
-    const isBonded = item?.isBonded;
     return (
       <TouchableOpacity style={styles.deviceItem} onPress={() => connectToDevice(item)}>
         <View style={styles.deviceHeader}>
-          <Text style={styles.deviceName}>{item.name || 'Unknown Device'}</Text>
-          <View style={styles.tagRow}>
-            {isClassic && <Text style={[styles.tag, styles.classicTag]}>Classic</Text>}
-            {isBonded && <Text style={[styles.tag, styles.bondedTag]}>Paired</Text>}
-            {!isClassic && !isBonded && <Text style={[styles.tag, styles.bleTag]}>BLE</Text>}
-          </View>
+          <Text style={styles.deviceName}>{item.name || 'Kavach Device'}</Text>
+          <Text style={[styles.tag, styles.bleTag]}>BLE</Text>
         </View>
         <Text style={styles.deviceId}>{item.id}</Text>
+        {item.rssi && <Text style={styles.deviceRssi}>RSSI: {item.rssi}</Text>}
       </TouchableOpacity>
     );
   };
@@ -562,7 +529,6 @@ const HomeScreen = ({ navigation }) => {
         },
         (error) => {
           console.error('Location Error:', error);
-          // Fallback to 0,0
           dispatchIncident(0, 0);
         },
         { enableHighAccuracy: false, timeout: 5000, maximumAge: 10000 }
@@ -584,7 +550,7 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Image source={require('../assets/images/kavach-shield.png')} style={styles.logo} />
+          <Image source={require('../assets/images/kavach-shield-old.png')} style={styles.logo} />
           <View>
             <Text style={styles.appName}>Kavach</Text>
             <Text style={styles.subtitle}>Safety Console</Text>
@@ -616,16 +582,24 @@ const HomeScreen = ({ navigation }) => {
             {lastHex && (
               <Text style={styles.connectionHex}>Last Hex: {lastHex}</Text>
             )}
+            {userDevices.length > 0 && (
+              <TouchableOpacity
+                style={styles.viewDevicesButton}
+                onPress={() => navigation.navigate('Settings')}>
+                <Text style={styles.viewDevicesText}>
+                  View {userDevices.length} Registered Device{userDevices.length > 1 ? 's' : ''} →
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Scan Bluetooth Devices Card */}
           <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
             <View>
               <Text style={styles.scanTitle}>Scan Bluetooth Devices</Text>
-              <Text style={styles.scanSubtitle}>Connect to safety wearables</Text>
+              <Text style={styles.scanSubtitle}>Connect to Kavach safety wearables</Text>
             </View>
             <View style={styles.scanIconBox}>
-              {/* Using text emoji for now, can be replaced with Icon if available */}
               <Text style={styles.scanIconEmoji}>📡</Text>
             </View>
           </TouchableOpacity>
@@ -683,7 +657,7 @@ const HomeScreen = ({ navigation }) => {
                       <Text style={styles.sosText}>SOS</Text>
                       <Text style={styles.sosSubText}>Press & hold</Text>
                     </LinearGradient>
-                  </LinearGradient>Ï
+                  </LinearGradient>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -693,7 +667,13 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.lastIncidentCard}>
             <View>
               <Text style={styles.lastIncidentLabel}>Last Incident</Text>
-              {lastLoggedIncident ? (
+              {isLoadingHistory ? (
+                <ActivityIndicator size="small" color="#FFFFFF" style={styles.loadingIndicator} />
+              ) : lastTrigger ? (
+                <Text style={styles.lastIncidentValue}>
+                  {formatTriggerDate(lastTrigger)} • {lastTrigger.mode || 'SOS'}
+                </Text>
+              ) : lastLoggedIncident ? (
                 <Text style={styles.lastIncidentValue}>{lastLoggedIncident.time} • {lastLoggedIncident.mode}</Text>
               ) : (
                 <Text style={styles.lastIncidentValue}>No incidents recorded.</Text>
@@ -717,7 +697,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Available Devices</Text>
+              <Text style={styles.modalTitle}>Kavach Devices</Text>
               <View style={styles.modalHeaderRight}>
                 {isScanning && <ActivityIndicator color="#e98f7c" style={styles.scanIndicator} />}
                 {!isScanning && (
@@ -731,36 +711,15 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Debug Info */}
-            <View style={styles.debugContainer}>
-              <Text style={styles.debugText}>
-                Scanning: {isScanning ? 'Yes' : 'No'} |
-                Devices: {peripherals instanceof Map ? peripherals.size : 0} |
-                Events: {eventCount}
-              </Text>
-              <Text style={styles.debugText}>
-                Connected: {connectedDeviceId ? 'Yes' : 'No'} |
-                Device ID: {connectedDeviceId || 'None'} |
-                Last Hex: {lastHex || 'None'}
-              </Text>
-              {lastEvent && (
-                <Text style={styles.debugText} numberOfLines={2}>
-                  Last: {lastEvent.name || lastEvent.id || 'Unknown'}
-                </Text>
-              )}
-            </View>
+            <Text style={styles.filterInfo}>
+              Scanning for devices with service UUID: {SERVICE_UUID.substring(0, 20)}...
+            </Text>
+            <Text style={styles.filterInfo}>
+              Device name filter: "{DEVICE_NAME}"
+            </Text>
 
             <FlatList
-              data={
-                peripherals instanceof Map
-                  ? Array.from(peripherals.values()).sort((a, b) => {
-                    const aBonded = !!a?.isBonded;
-                    const bBonded = !!b?.isBonded;
-                    if (aBonded === bBonded) return 0;
-                    return aBonded ? 1 : -1; // bonded go to bottom
-                  })
-                  : []
-              }
+              data={peripherals instanceof Map ? Array.from(peripherals.values()) : []}
               renderItem={renderDeviceItem}
               keyExtractor={(item, index) => item?.id || `device-${index}`}
               contentContainerStyle={styles.listContent}
@@ -769,18 +728,13 @@ const HomeScreen = ({ navigation }) => {
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
                     {isScanning
-                      ? 'Scanning for BLE devices...'
-                      : `No BLE devices found. (Found: ${peripherals instanceof Map ? peripherals.size : 0})`}
+                      ? 'Scanning for Kavach devices...'
+                      : `No Kavach devices found. (Found: ${peripherals instanceof Map ? peripherals.size : 0})`}
                   </Text>
                   <Text style={styles.emptySubtext}>
-                    Note: Scanning for ALL nearby Bluetooth devices.{'\n'}
-                    If your device is not showing up, ensure it is in pairing mode.
+                    Only devices with service UUID {SERVICE_UUID.substring(0, 20)}...{'\n'}
+                    and name containing "{DEVICE_NAME}" will be shown.
                   </Text>
-                  {eventCount === 0 && isScanning && (
-                    <Text style={styles.emptySubtext}>
-                      ⚠️ No discovery events received yet. Check console logs.
-                    </Text>
-                  )}
                 </View>
               }
             />
@@ -805,32 +759,49 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Recent Incident</Text>
+              <Text style={styles.modalTitle}>Trigger History</Text>
               <TouchableOpacity onPress={() => setIsLogModalVisible(false)}>
                 <Text style={styles.modalClose}>Close</Text>
               </TouchableOpacity>
             </View>
 
-            <FlatList
-              data={incidents.slice(0, 1)}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={
-                <Text style={styles.emptyIncidents}>
-                  No incidents recorded properly.
-                </Text>
-              }
-              renderItem={({ item }) => (
-                <View style={styles.deviceItem}>
-                  <View style={styles.deviceHeader}>
-                    <Text style={styles.deviceName}>{item.time}</Text>
-                    <Text style={[styles.tag, styles.bondedTag]}>{item.mode}</Text>
-                  </View>
-                  <Text style={styles.deviceId}>Lat: {item.lat}, Lng: {item.lng}</Text>
-                  <Text style={styles.deviceId}>IP: {item.ip}</Text>
-                </View>
-              )}
-            />
+            {isLoadingHistory ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#e98f7c" />
+                <Text style={styles.loadingText}>Loading history...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={triggerHistory.length > 0 ? triggerHistory : incidents.slice(0, 10)}
+                keyExtractor={(item, index) => item?.id || item?._id || `trigger-${index}`}
+                contentContainerStyle={styles.listContent}
+                ListEmptyComponent={
+                  <Text style={styles.emptyIncidents}>
+                    No trigger history found.
+                  </Text>
+                }
+                renderItem={({ item }) => {
+                  // Handle both API trigger format and local incident format
+                  const triggerDate = formatTriggerDate(item);
+                  const mode = item.mode || 'SOS';
+                  const lat = item.latitude || item.lat || item.location?.latitude || 'N/A';
+                  const lng = item.longitude || item.lng || item.location?.longitude || 'N/A';
+                  const ip = item.ip || item.deviceInfo?.ip || 'N/A';
+                  
+                  return (
+                    <View style={styles.deviceItem}>
+                      <View style={styles.deviceHeader}>
+                        <Text style={styles.deviceName}>{triggerDate}</Text>
+                        <Text style={[styles.tag, styles.bondedTag]}>{mode}</Text>
+                      </View>
+                      <Text style={styles.deviceId}>Lat: {lat}, Lng: {lng}</Text>
+                      {ip !== 'N/A' && <Text style={styles.deviceId}>IP: {ip}</Text>}
+                      {item.deviceId && <Text style={styles.deviceId}>Device: {item.deviceId}</Text>}
+                    </View>
+                  );
+                }}
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -869,9 +840,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     marginHorizontal: AppFonts.nW(20),
-    // Removed row/alignItems/gap to stack vertically
   },
-
 
   appName: {
     fontSize: AppFonts.n(20),
@@ -898,10 +867,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#68778f',
     padding: AppFonts.n(10),
     borderRadius: AppFonts.n(16),
-    // height: AppFonts.nH(80),
     paddingHorizontal: AppFonts.nW(14),
     justifyContent: 'space-between',
-    alignItems: 'flex-start', // Stack label and value
+    alignItems: 'flex-start',
     borderWidth: AppFonts.n(1),
     borderColor: '#94a0b2',
     shadowColor: '#000',
@@ -914,7 +882,6 @@ const styles = StyleSheet.create({
   statLabel: { color: '#ffffff', fontSize: AppFonts.n(10), fontWeight: '500' },
   statValue: { color: 'white', fontSize: AppFonts.n(20), fontWeight: '700' },
 
-  // Connection Status Card
   connectionCard: {
     backgroundColor: '#68778f',
     borderRadius: AppFonts.n(16),
@@ -945,8 +912,20 @@ const styles = StyleSheet.create({
     fontSize: AppFonts.n(11),
     marginTop: AppFonts.nH(4),
   },
+  viewDevicesButton: {
+    marginTop: AppFonts.nH(12),
+    paddingVertical: AppFonts.nH(8),
+    paddingHorizontal: AppFonts.nW(12),
+    backgroundColor: '#e98f7c',
+    borderRadius: AppFonts.n(8),
+    alignItems: 'center',
+  },
+  viewDevicesText: {
+    color: '#FFFFFF',
+    fontSize: AppFonts.n(12),
+    fontWeight: '600',
+  },
 
-  // Scan Card
   scanCard: {
     backgroundColor: '#68778f',
     borderRadius: AppFonts.n(16),
@@ -978,13 +957,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
 
-  // Hero Card
   heroCard: {
     backgroundColor: '#68778f',
     borderRadius: AppFonts.n(24),
     padding: AppFonts.n(18),
     borderWidth: AppFonts.n(1),
-    borderColor: '#94a0b2', // Subtle border
+    borderColor: '#94a0b2',
     marginBottom: AppFonts.nH(20),
     justifyContent: 'space-between',
     shadowColor: '#000',
@@ -1038,7 +1016,7 @@ const styles = StyleSheet.create({
   sosButton: {
     width: 200,
     height: 200,
-    borderRadius: 100, // Circle
+    borderRadius: 100,
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1154,6 +1132,8 @@ const styles = StyleSheet.create({
 
   lastIncidentValue: { color: '#ffffff', fontSize: AppFonts.n(11) },
 
+  loadingIndicator: { marginTop: 4 },
+
   viewLogBtn: {
     backgroundColor: '#68778f',
     borderRadius: AppFonts.n(12),
@@ -1165,7 +1145,6 @@ const styles = StyleSheet.create({
 
   viewLogText: { color: '#ffffff', fontSize: AppFonts.n(11), fontWeight: '500' },
 
-  // Modal Styles
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.8)',
@@ -1214,6 +1193,12 @@ const styles = StyleSheet.create({
     fontSize: AppFonts.n(10),
     fontWeight: '600',
   },
+  filterInfo: {
+    color: '#cdd2db',
+    fontSize: AppFonts.n(10),
+    marginBottom: AppFonts.nH(8),
+    fontStyle: 'italic',
+  },
   listContent: {
     paddingBottom: 20,
   },
@@ -1221,6 +1206,17 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     marginTop: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    color: '#ffffff',
+    marginTop: 12,
+    fontSize: AppFonts.n(14),
   },
   deviceItem: {
     backgroundColor: '#68778f',
@@ -1244,9 +1240,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  tagRow: {
-    flexDirection: 'row',
-    gap: 6,
+  deviceRssi: {
+    color: '#cdd2db',
+    fontSize: 11,
+    marginTop: 2,
   },
   tag: {
     paddingHorizontal: 8,
@@ -1256,17 +1253,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     overflow: 'hidden',
   },
-  classicTag: {
-    backgroundColor: '#312e81',
-    color: '#e0e7ff',
+  bleTag: {
+    backgroundColor: '#1f2937',
+    color: '#e5e7eb',
   },
   bondedTag: {
     backgroundColor: '#064e3b',
     color: '#d1fae5',
-  },
-  bleTag: {
-    backgroundColor: '#1f2937',
-    color: '#e5e7eb',
   },
   emptyContainer: {
     padding: 20,
@@ -1296,35 +1289,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '700',
     fontSize: 16,
-  },
-  debugContainer: {
-    backgroundColor: '#68778f',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#94a0b2',
-  },
-  debugText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontFamily: 'monospace',
-  },
-  logoContainer: {
-    marginBottom: 16,
-    backgroundColor: '#68778f',
-    borderRadius: 12,
-    width: normalize(48),
-    height: normalize(48),
-    marginEnd: normalize(10),
-    borderWidth: 1,
-    borderColor: '#2C2F35',
-  },
-  logoIcon: {
-    width: normalize(48),
-    height: normalize(48),
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
 

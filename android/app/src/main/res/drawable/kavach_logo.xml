@@ -1,85 +1,32 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="512dp"
-    android:height="512dp"
-    android:viewportWidth="512"
-    android:viewportHeight="512">
-
-    <group>
-        <!-- Main shield outer border -->
-        <path
-            android:fillColor="#F5F6F9"
-            android:strokeColor="#E4E7EE"
-            android:strokeWidth="20"
-            android:strokeLineJoin="round"
-            android:pathData="M256 60 L132 104 Q114 110 106 124 Q98 138 98 158 L98 232 Q98 288 120 336 Q142 384 180 420 Q212 450 244 470 Q250 474 256 474 Q262 474 268 470 Q300 450 332 420 Q370 384 392 336 Q414 288 414 232 L414 158 Q414 138 406 124 Q398 110 380 104 Z" />
-        
-        <!-- Inner groove -->
-        <path
-            android:fillAlpha="0.95"
-            android:strokeColor="#B0B6C3"
-            android:strokeAlpha="0.95"
-            android:strokeWidth="10"
-            android:strokeLineJoin="round"
-            android:strokeLineCap="round"
-            android:pathData="M256 94 L146 130 Q136 134 130 144 Q126 152 126 166 L126 230 Q126 278 144 316 Q162 352 192 382 Q218 406 242 420 Q248 424 256 424 Q264 424 270 420 Q294 406 320 384 Q350 356 368 320 Q386 284 386 236 L386 170 Q386 156 382 148 Q378 138 368 134 Z" />
-        
-        <!-- Main shield face with gradient -->
-        <path
-            android:strokeColor="#E3E7EE"
-            android:strokeWidth="4.5"
-            android:strokeLineJoin="round"
-            android:pathData="M256 112 L154 146 Q146 148 142 156 Q138 164 138 176 L138 228 Q138 266 152 296 Q170 334 198 360 Q218 378 240 392 Q246 396 256 396 Q266 396 272 392 Q294 378 314 362 Q342 338 360 302 Q374 274 378 246 Q380 236 380 228 L380 178 Q380 168 376 160 Q372 152 364 150 Z">
-            <aapt:attr name="android:fillColor">
-                <gradient
-                    android:startX="0"
-                    android:startY="0"
-                    android:endX="0"
-                    android:endY="512"
-                    android:type="linear">
-                    <item android:offset="0" android:color="#FFFFFF"/>
-                    <item android:offset="0.4" android:color="#F7F8FA"/>
-                    <item android:offset="1" android:color="#DEE3EA"/>
-                </gradient>
-            </aapt:attr>
-        </path>
-        
-        <!-- Top highlight -->
-        <path
-            android:fillAlpha="0.96"
-            android:strokeWidth="1"
-            android:pathData="M256 68 L134 106 Q126 108 120 114 Q142 118 168 122 Q196 126 222 128 Q238 130 256 130 Q274 130 290 128 Q316 126 344 122 Q370 118 392 114 Q386 108 378 106 Z">
-            <aapt:attr name="android:fillColor">
-                <gradient
-                    android:startX="0"
-                    android:startY="0"
-                    android:endX="0"
-                    android:endY="512"
-                    android:type="linear">
-                    <item android:offset="0" android:color="#FFFFFF" android:alpha="0.98"/>
-                    <item android:offset="0.45" android:color="#FFFFFF" android:alpha="0.40"/>
-                    <item android:offset="1" android:color="#FFFFFF" android:alpha="0"/>
-                </gradient>
-            </aapt:attr>
-        </path>
-        
-        <!-- Bottom glow -->
-        <path
-            android:fillAlpha="0.7"
-            android:strokeWidth="1"
-            android:pathData="M176 360 Q204 388 236 408 Q246 414 256 414 Q266 414 276 408 Q308 388 336 360 Q350 346 362 326 Q348 334 332 342 Q306 354 280 362 Q268 366 256 366 Q244 366 232 362 Q206 354 180 342 Q164 334 150 326 Q162 346 176 360 Z">
-            <aapt:attr name="android:fillColor">
-                <gradient
-                    android:startX="0"
-                    android:startY="512"
-                    android:endX="0"
-                    android:endY="0"
-                    android:type="linear">
-                    <item android:offset="0" android:color="#FFFFFF" android:alpha="0.45"/>
-                    <item android:offset="0.5" android:color="#FFFFFF" android:alpha="0"/>
-                </gradient>
-            </aapt:attr>
-        </path>
-    </group>
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    
+    <!-- Main shield with gradient (matching LoginScreen pattern) -->
+    <path android:pathData="M64 8c12 10 28 12 44 12v40c0 26-18 49-44 60C38 109 20 86 20 60V20c16 0 32-2 44-12z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="128"
+                android:endY="128"
+                android:type="linear">
+                <item
+                    android:offset="0"
+                    android:color="#EF4444"/>
+                <item
+                    android:offset="1"
+                    android:color="#e98f7c"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    
+    <!-- Highlight overlay -->
+    <path android:fillColor="#FFFFFF"
+        android:fillAlpha="0.14"
+        android:pathData="M64 14c9 8 22 10 35 11v33c0 22-15 41-35 50-20-9-35-28-35-50V25c13-1 26-3 35-11z"/>
 </vector>
+

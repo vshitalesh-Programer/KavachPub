@@ -19,11 +19,12 @@ const authSlice = createSlice({
     loginSuccess: (state, action) => {
       state.loading = false;
       state.isAuthenticated = true;
-      // The API returns { token, user: {...} }
+      // The API returns { token/accessToken, user: {...} }
       // We want to store them separately
-      const { user, token } = action.payload || {};
+      const { user, token, accessToken } = action.payload || {};
       state.user = user || action.payload; // Fallback if no 'user' key
-      state.token = token || state.token;
+      // Store access token (handle both 'token' and 'accessToken' field names)
+      state.token = token || accessToken || state.token;
     },
     loginFailure: (state, action) => {
       state.loading = false;
@@ -41,9 +42,10 @@ const authSlice = createSlice({
     signupSuccess: (state, action) => {
       state.loading = false;
       state.isAuthenticated = true;
-      const { user, token } = action.payload || {};
+      const { user, token, accessToken } = action.payload || {};
       state.user = user || action.payload;
-      state.token = token || state.token;
+      // Store access token (handle both 'token' and 'accessToken' field names)
+      state.token = token || accessToken || state.token;
     },
     signupFailure: (state, action) => {
       state.loading = false;
