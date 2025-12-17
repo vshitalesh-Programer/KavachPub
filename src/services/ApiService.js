@@ -21,6 +21,10 @@ class ApiService {
       (config) => {
         if (this.token) {
           config.headers.Authorization = `Bearer ${this.token}`;
+          console.log(`[API Request] ${(config.method || 'GET').toUpperCase()} ${config.url}`);
+          console.log(`[API Request] Bearer Token: ${this.token}`);
+        } else {
+          console.log(`[API Request] ${(config.method || 'GET').toUpperCase()} ${config.url} - No token`);
         }
         const method = (config.method || 'GET').toUpperCase();
         console.log(`[API Request] ${method} ${config.url}`, config.data ? config.data : '');
@@ -168,6 +172,12 @@ class ApiService {
     const response = await this.api.post(`${API_V1_PREFIX}/devices`, {
       deviceId: [deviceData.deviceId || deviceData.id || ''],
     });
+    return this.unwrapResponse(response);
+  }
+
+  async deleteDevice(deviceId) {
+    // deviceId: string - the device ID to delete
+    const response = await this.api.delete(`${API_V1_PREFIX}/devices/${deviceId}`);
     return this.unwrapResponse(response);
   }
 }

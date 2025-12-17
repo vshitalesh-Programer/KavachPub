@@ -1,50 +1,133 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Share,
+} from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-
-const MOCK_INCIDENTS = [
-  {
-    id: '1',
-    time: '05/08/2025, 02:44:00',
-    lat: 37.7749,
-    lng: -122.4194,
-    mode: 'Loud',
-  },
-  {
-    id: '2',
-    time: '12/10/2025, 11:18:00',
-    lat: 37.3382,
-    lng: -121.8863,
-    mode: 'Silent',
-  },
-];
-
-import { useSelector } from 'react-redux';
+import ApiService from '../services/ApiService';
 
 const IncidentsScreen = () => {
-  const incidents = useSelector(state => state.incidents.incidents);
-  const mapRef = React.useRef(null);
+  const [incidents, setIncidents] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const mapRef = useRef(null);
 
-  // Automatically focus on the new incident when it arrives
-  React.useEffect(() => {
-    if (incidents.length > 0 && incidents[0].lat !== 0) {
-      mapRef.current?.animateToRegion({
-        latitude: incidents[0].lat,
-        longitude: incidents[0].lng,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 1000);
+  const formatIncident = useCallback((item) => {
+    // Handle latitude/longitude - API returns as strings
+    const lat = parseFloat(item.latitude || item.lat || item.location?.lat || 0);
+    const lng = parseFloat(item.longitude || item.lng || item.location?.lng || 0);
+    
+    // Use triggeredAt as primary timestamp, fallback to createdAt
+    const timestamp = item.triggeredAt || item.createdAt || item.timestamp || item.date || item.time;
+    
+    // Derive mode from status or use default
+    const mode = item.status === 'completed' ? 'SOS' : (item.mode || item.status || 'SOS');
+    
+    // Get device info
+    const deviceInfo = item.deviceInfo || item.deviceId || 'Unknown Device';
+
+    return {
+      id: item.id || `${lat}-${lng}-${timestamp}`,
+      time: timestamp ? new Date(timestamp).toLocaleString() : 'Unknown time',
+      lat,
+      lng,
+      mode,
+      deviceId: item.deviceId,
+      deviceInfo,
+      status: item.status,
+      callsMade: item.callsMade,
+      textsSent: item.textsSent,
+      notes: item.notes,
+      notificationLogs: item.notificationLogs || [],
+      raw: item,
+    };
+  }, []);
+
+  const fetchIncidents = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const history = await ApiService.getTriggerHistory();
+
+      // Handle API response structure: { triggers: [], pagination: {} }
+      const historyList = Array.isArray(history)
+        ? history
+        : history?.triggers || history?.data || history?.history || [];
+
+      // Sort by triggeredAt (most recent first)
+      const sorted = Array.isArray(historyList)
+        ? [...historyList].sort((a, b) => {
+            const dateA = new Date(a.triggeredAt || a.createdAt || a.timestamp || a.date || 0);
+            const dateB = new Date(b.triggeredAt || b.createdAt || b.timestamp || b.date || 0);
+            return dateB - dateA;
+          })
+        : [];
+
+      // Format and filter incidents with valid coordinates
+      const formatted = sorted
+        .map(formatIncident)
+        .filter((item) => item.lat && item.lng && !isNaN(item.lat) && !isNaN(item.lng));
+      
+      setIncidents(formatted);
+      console.log('[IncidentsScreen] Loaded', formatted.length, 'incidents');
+    } catch (error) {
+      console.error('[IncidentsScreen] Error fetching incidents:', error);
+      setIncidents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [formatIncident]);
+
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
+
+  // Focus map on latest incident when data changes
+  useEffect(() => {
+    if (incidents.length > 0 && incidents[0].lat && incidents[0].lng) {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: incidents[0].lat,
+          longitude: incidents[0].lng,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        1000,
+      );
     }
   }, [incidents]);
 
   const handleIncidentPress = (incident) => {
-    if (incident.lat !== 0) {
-      mapRef.current?.animateToRegion({
-        latitude: incident.lat,
-        longitude: incident.lng,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 500);
+    if (incident.lat && incident.lng) {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: incident.lat,
+          longitude: incident.lng,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        500,
+      );
+    }
+  };
+
+  const handleShare = async (incident) => {
+    if (!incident.lat || !incident.lng) {
+      return;
+    }
+    const mapsLink = `https://www.google.com/maps?q=${incident.lat},${incident.lng}`;
+    const message = `Emergency location:\n${mapsLink}\n\nTime: ${incident.time}\nMode: ${incident.mode}`;
+    try {
+      await Share.share({
+        message,
+        url: mapsLink,
+        title: 'Share Incident Location',
+      });
+    } catch (error) {
+      console.error('[IncidentsScreen] Share error:', error);
     }
   };
 
@@ -63,27 +146,29 @@ const IncidentsScreen = () => {
           <Text style={styles.locationValue}>
             {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
           </Text>
-          {item.ip && (
-            <Text style={[styles.locationValue, { marginTop: 4, fontSize: 12, color: '#ffffff' }]}>
-              IP: {item.ip}
+          {item.deviceInfo && (
+            <Text style={[styles.locationValue, styles.ipText]}>
+              Device: {item.deviceInfo}
+            </Text>
+          )}
+          {item.status && (
+            <Text style={[styles.locationValue, styles.ipText]}>
+              Status: {item.status}
             </Text>
           )}
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(item)}>
             <Text style={styles.actionIcon}>🔗</Text>
             <Text style={styles.actionText}>Share</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={[styles.actionButton, styles.deleteButton]}>
-            <Text style={styles.actionIcon}>🗑️</Text>
-            <Text style={styles.actionText}>Delete</Text>
           </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
   );
+
+  const hasMapData = incidents.length > 0 && incidents[0].lat && incidents[0].lng;
 
   return (
     <View style={styles.container}>
@@ -93,7 +178,7 @@ const IncidentsScreen = () => {
       </View>
 
       {/* Map View */}
-      {incidents.length > 0 && incidents[0].lat !== 0 ? (
+      {hasMapData ? (
           <MapView
             ref={mapRef}
             provider={PROVIDER_GOOGLE}
@@ -106,34 +191,40 @@ const IncidentsScreen = () => {
             }}
           >
             {incidents.map((incident) => (
-                incident.lat !== 0 && (
+                incident.lat && incident.lng ? (
                     <Marker
                         key={incident.id}
                         coordinate={{ latitude: incident.lat, longitude: incident.lng }}
                         title={`SOS ${incident.time}`}
-                        description={`IP: ${incident.ip || 'N/A'}`}
+                        description={incident.deviceInfo ? `Device: ${incident.deviceInfo}` : `Status: ${incident.status || 'N/A'}`}
                     />
-                )
+                ) : null
             ))}
           </MapView>
       ) : (
         <View style={styles.mapPlaceholder}>
             <Text style={styles.mapPlaceholderText}>
-                {incidents.length === 0 ? 'No incidents to map' : 'Location not available'}
+                {isLoading ? 'Loading incidents...' : 'No incidents to map'}
             </Text>
         </View>
       )}
 
-      <FlatList
-        data={incidents}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-             <Text style={{color: '#777', textAlign: 'center', marginTop: 20}}>No incidents yet.</Text>
-        }
-      />
+      {isLoading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      ) : (
+        <FlatList
+          data={incidents}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+               <Text style={styles.emptyListText}>No incidents yet.</Text>
+          }
+        />
+      )}
     </View>
   );
 };
@@ -234,6 +325,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'monospace', // To align coordinates nicely if supported
   },
+  ipText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#ffffff',
+  },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -261,6 +357,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '500',
+  },
+  loadingState: {
+    paddingVertical: 20,
+  },
+  emptyListText: {
+    color: '#777',
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
 

@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 import { setContacts as setContactsAction } from '../redux/slices/contactSlice';
 import LinearGradient from 'react-native-linear-gradient';
 import Contacts from 'react-native-contacts';
@@ -19,43 +20,15 @@ function ensureSections(sections) {
   }));
 }
 
-function deviceContactsToOptions(deviceContacts) {
-  return (deviceContacts || [])
-    .map(c => {
-      const name = c.displayName || [c.givenName, c.familyName].filter(Boolean).join(' ').trim() || 'Unknown';
-      const phone = Array.isArray(c.phoneNumbers) && c.phoneNumbers.length > 0
-        ? c.phoneNumbers[0].number
-        : '';
-      if (!phone) return null;
-      return {
-        id: c.recordID || `${name}-${phone}`,
-        name,
-        phone,
-      };
-    })
-    .filter(Boolean);
-}
 
 
 const ContactsScreen = () => {
+  const navigation = useNavigation();
   const dispatch = useDispatch();
   const contactsFromStore = useSelector(state => state.contacts.contacts);
   const [contacts, setContacts] = React.useState(ensureSections(contactsFromStore || []));
-  const [loading, setLoading] = React.useState(false);
   const [permissionStatus, setPermissionStatus] = React.useState('idle'); // idle | granted | denied | requesting
-  const [deviceOptions, setDeviceOptions] = React.useState([]);
-  const [showAddModal, setShowAddModal] = React.useState(false);
-  const [addCategory, setAddCategory] = React.useState('Emergency');
-  const [selectedDeviceContact, setSelectedDeviceContact] = React.useState(null);
-  const [nameInput, setNameInput] = React.useState('');
-  const [phoneInput, setPhoneInput] = React.useState('');
-  const [editingContact, setEditingContact] = React.useState(null);
-  const [modalAutoCall, setModalAutoCall] = React.useState(false);
-  const [modalAutoText, setModalAutoText] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState({ visible: false, section: null, id: null });
-  const [showDeviceDropdown, setShowDeviceDropdown] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [deviceSearchQuery, setDeviceSearchQuery] = React.useState('');
 
   React.useEffect(() => {
     checkPermissionAndLoad();
@@ -65,7 +38,6 @@ const ContactsScreen = () => {
 
   const checkPermissionAndLoad = async () => {
     try {
-      setLoading(true);
       const status = await Contacts.checkPermission();
       if (status === 'authorized') {
         setPermissionStatus('granted');
@@ -78,34 +50,23 @@ const ContactsScreen = () => {
     } catch (error) {
       console.error('Permission check failed', error);
       setPermissionStatus('denied');
-    } finally {
-      setLoading(false);
     }
   };
 
   const loadContacts = async () => {
     try {
-      setLoading(true);
-      // Fetch device contacts (no photos for performance)
-      const deviceContacts = await Contacts.getAllWithoutPhotos();
-      const deviceOpts = deviceContactsToOptions(deviceContacts);
-      setDeviceOptions(deviceOpts);
-
+      // Device contacts are only needed in AddEditContactScreen now
       const formattedStore = ensureSections(contactsFromStore || []);
       setContacts(formattedStore);
       dispatch(setContactsAction(formattedStore));
     } catch (error) {
       console.error('Failed to load contacts', error?.message || error);
       setContacts([]);
-      setDeviceOptions([]);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const loadServerContacts = async () => {
+  const loadServerContacts = React.useCallback(async () => {
     try {
-      setLoading(true);
       const data = await ApiService.getContacts();
       console.log('data', data);
       const items = Array.isArray(data) ? data : data?.contacts || [];
@@ -121,6 +82,7 @@ const ContactsScreen = () => {
           autoCall: !!c.autoCall,
           autoText: !!c.autoText,
           relation: title,
+          country: c.country || 'US',
         };
         const section = grouped.find(s => s.title === title);
         if (section) {
@@ -131,14 +93,11 @@ const ContactsScreen = () => {
       dispatch(setContactsAction(grouped));
     } catch (error) {
       console.error('Failed to fetch contacts from API', error?.message || error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [dispatch]);
 
   const requestContactsPermission = async () => {
     try {
-      setLoading(true);
       // If already granted, don't prompt again
       const current = await Contacts.checkPermission();
       if (current === 'authorized') {
@@ -159,49 +118,18 @@ const ContactsScreen = () => {
     } catch (error) {
       console.error('Permission request failed', error);
       setPermissionStatus('denied');
-    } finally {
-      setLoading(false);
     }
   };
 
   const openAddModal = (category) => {
-    setAddCategory(category);
-    setSelectedDeviceContact(null);
-    setNameInput('');
-    setPhoneInput('');
-    setModalAutoCall(false);
-    setModalAutoText(true);
-    setDeviceSearchQuery('');
-    setShowDeviceDropdown(false);
-    setShowAddModal(true);
-  };
-
-  const closeAddModal = () => {
-    setShowAddModal(false);
-    setSelectedDeviceContact(null);
-    setNameInput('');
-    setPhoneInput('');
-    setDeviceSearchQuery('');
-    setShowDeviceDropdown(false);
-  };
-
-  const handleSelectDevice = (item) => {
-    setSelectedDeviceContact(item);
-    setNameInput(item.name);
-    // Remove spaces from phone number
-    const cleanedPhone = item.phone ? item.phone.replace(/\s+/g, '') : '';
-    setPhoneInput(cleanedPhone);
+    navigation.navigate('AddEditContact', { category });
   };
 
   const handleEditContact = (sectionTitle, contact) => {
-    setAddCategory(sectionTitle);
-    setEditingContact(contact);
-    setNameInput(contact.name || '');
-    setPhoneInput(contact.phone || contact.detail || '');
-    setSelectedDeviceContact(null);
-    setModalAutoCall(!!contact.autoCall);
-    setModalAutoText(!!contact.autoText);
-    setShowAddModal(true);
+    navigation.navigate('AddEditContact', { 
+      category: sectionTitle, 
+      contact 
+    });
   };
 
   const handleDeleteContact = (sectionTitle, contactId) => {
@@ -231,40 +159,6 @@ const ContactsScreen = () => {
     }
   };
 
-  const handleSaveContact = async () => {
-    if (!nameInput.trim() || !phoneInput.trim()) {
-      return;
-    }
-    setSaving(true);
-    const payload = {
-      name: nameInput.trim(),
-      phone: phoneInput.trim(),
-      relation: addCategory,
-      country: "US",
-      autoCall: modalAutoCall,
-      autoText: modalAutoText,
-    };
-    try {
-      const saved = editingContact
-        ? await ApiService.updateContact(editingContact.id, payload)
-        : await ApiService.createContact(payload);
-
-      // Refresh from server to keep in sync
-      await loadServerContacts();
-
-      // Fallback local update if server didn't return immediately
-      if (!saved) {
-        closeAddModal();
-        return;
-      }
-
-    } catch (err) {
-      console.error('Failed to save contact', err?.message || err);
-    } finally {
-      setSaving(false);
-      closeAddModal();
-    }
-  };
 
   const toggleAutoFlag = async (sectionTitle, contact, field) => {
     const updatedValue = !contact[field];
@@ -272,7 +166,7 @@ const ContactsScreen = () => {
       name: contact.name,
       phone: contact.phone || contact.detail,
       relation: sectionTitle,
-      country: 'US',
+      country: contact.country || 'US',
       autoCall: field === 'autoCall' ? updatedValue : contact.autoCall,
       autoText: field === 'autoText' ? updatedValue : contact.autoText,
     };
@@ -294,155 +188,13 @@ const ContactsScreen = () => {
     }
   };
 
-  const renderAddModal = () => (
-    <Modal
-      visible={showAddModal}
-      transparent
-      animationType="slide"
-      onRequestClose={closeAddModal}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Add Contact</Text>
-          <Text style={styles.modalSubtitle}>Category: {addCategory}</Text>
-
-          <Text style={styles.modalLabel}>Pick from phone</Text>
-          <TouchableOpacity
-            style={[
-              styles.dropdownTrigger,
-              permissionStatus !== 'granted' && styles.dropdownDisabled,
-            ]}
-            onPress={() => permissionStatus === 'granted' ? setShowDeviceDropdown(!showDeviceDropdown) : null}
-            disabled={permissionStatus !== 'granted'}
-          >
-            <Text style={styles.dropdownValue}>
-              {permissionStatus !== 'granted'
-                ? 'Permission not provided'
-                : selectedDeviceContact
-                  ? `${selectedDeviceContact.name} (${selectedDeviceContact.phone})`
-                  : 'Select from phone contacts'}
-            </Text>
-            <Text style={styles.dropdownChevron}>
-              {permissionStatus !== 'granted' ? '!' : showDeviceDropdown ? '▲' : '▼'}
-            </Text>
-          </TouchableOpacity>
-          {showDeviceDropdown && permissionStatus === 'granted' && (
-            <View style={styles.dropdownListContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search contacts..."
-                placeholderTextColor="#9CA3AF"
-                value={deviceSearchQuery}
-                onChangeText={setDeviceSearchQuery}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <FlatList
-                data={deviceOptions.filter(item => {
-                  if (!deviceSearchQuery.trim()) return true;
-                  const query = deviceSearchQuery.toLowerCase();
-                  return item.name.toLowerCase().includes(query) || 
-                         item.phone.includes(query);
-                })}
-                keyExtractor={(item) => item.id}
-                style={styles.modalList}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.deviceOption,
-                      selectedDeviceContact?.id === item.id && styles.deviceOptionActive,
-                    ]}
-                    onPress={() => {
-                      handleSelectDevice(item);
-                      setShowDeviceDropdown(false);
-                      setDeviceSearchQuery('');
-                    }}
-                  >
-                    <Text style={styles.deviceName}>{item.name}</Text>
-                    <Text style={styles.devicePhone}>{item.phone}</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={styles.emptyOptions}>
-                    {deviceSearchQuery.trim() ? 'No contacts found matching your search.' : 'No device contacts loaded.'}
-                  </Text>
-                }
-              />
-            </View>
-          )}
-
-          <Text style={styles.modalLabel}>Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter name"
-            placeholderTextColor="#cdd2db"
-            value={nameInput}
-            onChangeText={setNameInput}
-          />
-
-          <Text style={styles.modalLabel}>Phone</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter phone number"
-            placeholderTextColor="#cdd2db"
-            value={phoneInput}
-            onChangeText={setPhoneInput}
-            keyboardType="phone-pad"
-          />
-
-          <View>
-            <View style={styles.autoRow}>
-              <Text style={styles.autoLabel}>Auto-call on trigger</Text>
-              <TouchableOpacity
-                style={[styles.autoPill, modalAutoCall && styles.autoPillActive]}
-                onPress={() => setModalAutoCall(!modalAutoCall)}
-              >
-                <Text style={[styles.autoPillText, modalAutoCall && styles.autoPillTextActive]}>
-                  {modalAutoCall ? 'Auto-call ✓' : 'Set as Auto-call'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.autoRow}>
-              <Text style={styles.autoLabel}>Auto-text on trigger</Text>
-              <TouchableOpacity
-                style={[
-                  styles.autoPill,
-                  modalAutoText ? styles.autoPillActive : styles.autoPillNeutral,
-                ]}
-                onPress={() => setModalAutoText(!modalAutoText)}
-              >
-                <Text
-                  style={[
-                    styles.autoPillText,
-                    modalAutoText ? styles.autoPillTextActive : styles.autoPillTextNeutral,
-                  ]}
-                >
-                  {modalAutoText ? 'Yes ✓' : 'No'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalButtonSecondary} onPress={closeAddModal}>
-              <Text style={styles.modalButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalButtonPrimary, saving && styles.buttonDisabled]}
-              onPress={handleSaveContact}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.modalButtonText}>Save</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
+  // Refresh contacts when screen is focused (after returning from AddEditContact)
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadServerContacts();
+    });
+    return unsubscribe;
+  }, [navigation, loadServerContacts]);
 
   const renderDeleteModal = () => (
     <Modal
@@ -511,7 +263,6 @@ const ContactsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {renderAddModal()}
         {renderDeleteModal()}
 
         {/* {loading || permissionStatus === 'requesting' ? (
@@ -922,17 +673,24 @@ const styles = StyleSheet.create({
     maxHeight: 180,
     marginBottom: 10,
   },
+  phoneDropdownList: {
+    maxHeight: 220,
+  },
+  phoneDropdownListContent: {
+    paddingBottom: 8,
+  },
   deviceOption: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#3A3B40',
-    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2e323a',
   },
   deviceOptionActive: {
-    borderColor: '#e98f7c',
-    backgroundColor: 'rgba(233,143,124,0.1)',
+    backgroundColor: 'rgba(233,143,124,0.15)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#e98f7c',
   },
   dropdownTrigger: {
     borderWidth: 1,
@@ -966,31 +724,100 @@ const styles = StyleSheet.create({
     backgroundColor: '#242733',
     marginBottom: 10,
   },
-  searchInput: {
+  countryDropdownWrapper: {
+    position: 'relative',
+    zIndex: 1,
+    marginBottom: 8,
+  },
+  floatingDropdownContainer: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    maxHeight: 120,
+    borderWidth: 1,
+    borderColor: '#3A3B40',
+    borderRadius: 12,
+    backgroundColor: '#242733',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 1000,
+    overflow: 'hidden',
+  },
+  phoneContactsDropdownWrapper: {
+    position: 'relative',
+    zIndex: 10,
+    marginBottom: 8,
+  },
+  floatingPhoneDropdownContainer: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#3A3B40',
+    borderRadius: 12,
+    backgroundColor: '#242733',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 1000,
+    overflow: 'hidden',
+  },
+  phoneDropdownListContainer: {
+    maxHeight: 220,
+    flex: 1,
+  },
+  searchInputContainer: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3A3B40',
     backgroundColor: '#2e323a',
+  },
+  searchInput: {
+    backgroundColor: '#1a1d24',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     color: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#3A3B40',
     fontSize: 14,
-    margin: 8,
   },
   deviceName: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
+    marginBottom: 4,
   },
   devicePhone: {
-    color: '#cdd2db',
-    fontSize: 12,
-    marginTop: 2,
+    color: '#9CA3AF',
+    fontSize: 13,
+  },
+  deviceOptionContent: {
+    flex: 1,
+  },
+  checkmark: {
+    color: '#e98f7c',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  emptyOptionsContainer: {
+    paddingVertical: 24,
+    paddingHorizontal: 16,
   },
   emptyOptions: {
     color: '#9CA3AF',
     textAlign: 'center',
-    paddingVertical: 16,
+    fontSize: 13,
   },
   input: {
     backgroundColor: '#2e323a',
@@ -1001,6 +828,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3A3B40',
     fontSize: 14,
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  phonePrefix: {
+    backgroundColor: '#2e323a',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#3A3B40',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
+  phonePrefixText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  phoneInput: {
+    flex: 1,
   },
   modalActions: {
     flexDirection: 'row',

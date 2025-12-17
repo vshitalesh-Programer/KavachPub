@@ -40,41 +40,53 @@ const HomeScreen = ({ navigation }) => {
   // Get last trigger from API history (prefer API data over local incidents)
   const lastTrigger = triggerHistory.length > 0 ? triggerHistory[0] : null;
 
+  const fetchTriggerHistory = async () => {
+    try {
+      setIsLoadingHistory(true);
+      const history = await ApiService.getTriggerHistory();
+      console.log("🚀 ~ fetchTriggerHistory ~ history:", history);
+      
+      // Handle different response formats
+      const historyList = Array.isArray(history) 
+        ? history 
+        : (history?.triggers || history?.data || history?.history || []);
+      
+      // Sort by date (most recent first) if the API doesn't return sorted data
+      const sortedHistory = Array.isArray(historyList) 
+        ? [...historyList].sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.timestamp || a.date || 0);
+            const dateB = new Date(b.createdAt || b.timestamp || b.date || 0);
+            return dateB - dateA;
+          })
+        : [];
+      
+      setTriggerHistory(sortedHistory);
+      console.log('[HomeScreen] Trigger history loaded:', sortedHistory.length, 'items');
+    } catch (error) {
+      console.error('[HomeScreen] Error fetching trigger history:', error);
+      // Don't show error to user, just use local incidents as fallback
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   // Fetch trigger history and devices on mount
   useEffect(() => {
-    const fetchTriggerHistory = async () => {
-      try {
-        setIsLoadingHistory(true);
-        const history = await ApiService.getTriggerHistory();
-        
-        // Handle different response formats
-        const historyList = Array.isArray(history) 
-          ? history 
-          : (history?.triggers || history?.data || history?.history || []);
-        
-        // Sort by date (most recent first) if the API doesn't return sorted data
-        const sortedHistory = Array.isArray(historyList) 
-          ? [...historyList].sort((a, b) => {
-              const dateA = new Date(a.createdAt || a.timestamp || a.date || 0);
-              const dateB = new Date(b.createdAt || b.timestamp || b.date || 0);
-              return dateB - dateA;
-            })
-          : [];
-        
-        setTriggerHistory(sortedHistory);
-        console.log('[HomeScreen] Trigger history loaded:', sortedHistory.length, 'items');
-      } catch (error) {
-        console.error('[HomeScreen] Error fetching trigger history:', error);
-        // Don't show error to user, just use local incidents as fallback
-      } finally {
-        setIsLoadingHistory(false);
-      }
-    };
+    // const postdevice = async () => {
+    //   try {
+    //     const response = await ApiService.createDevice({ deviceId: 'test-id' });
+    //     console.log("🚀 ~ postdevice ~ response:", response);
+    //   } catch (error) {
+    //     console.error('[HomeScreen] Error posting device:', error);
+    //   }
+    // };
+    // postdevice();
 
     const fetchDevices = async () => {
       try {
         setIsLoadingDevices(true);
         const devicesData = await ApiService.getDevices();
+        console.log("🚀 ~ fetchDevices ~ devicesData:", devicesData);
         
         // Handle different response formats
         const devicesList = Array.isArray(devicesData) 
@@ -516,6 +528,7 @@ const HomeScreen = ({ navigation }) => {
           const response = await ApiService.triggerEmergency(locationData);
           const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
           Alert.alert('SOS Sent', message);
+          fetchTriggerHistory();
         } catch (err) {
           console.error('API Error:', err);
           Alert.alert('SOS Saved', 'Logged locally. Failed to send to server.');

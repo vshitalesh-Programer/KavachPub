@@ -37,6 +37,7 @@ const SettingsScreen = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [peripherals, setPeripherals] = useState([]);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [deletingDeviceId, setDeletingDeviceId] = useState(null);
   const scanSubscriptionRef = useRef(null);
   const scanTimeoutRef = useRef(null);
 
@@ -246,6 +247,61 @@ const SettingsScreen = () => {
     }
   };
 
+  const handleDeleteDevice = (device) => {
+    const deviceIdsArray = Array.isArray(device.deviceId) ? device.deviceId : [device.deviceId].filter(Boolean);
+    const deviceName = device.name || deviceIdsArray[0] || device.id || 'Unknown Device';
+    
+    Alert.alert(
+      'Delete Device',
+      `Are you sure you want to delete "${deviceName}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingDeviceId(device.id);
+              await ApiService.deleteDevice(device.id);
+              console.log('[Settings] Device deleted successfully');
+              
+              // If the deleted device was connected, clear it
+              const deletedDeviceIds = Array.isArray(device.deviceId) ? device.deviceId : [device.deviceId].filter(Boolean);
+              const isCurrentlyConnected = deletedDeviceIds.some(
+                (deviceId) => 
+                  connectedDevice?.deviceId === deviceId || 
+                  connectedDevice?.id === deviceId
+              ) || connectedDevice?.id === device.id;
+              
+              if (isCurrentlyConnected) {
+                dispatch(clearConnectedDevice());
+                try {
+                  await AsyncStorage.removeItem(DEVICE_STORAGE_KEY);
+                } catch (storageError) {
+                  console.error('[Settings] Error clearing device from storage:', storageError);
+                }
+              }
+              
+              // Refresh devices list
+              await fetchDevices();
+              
+              Alert.alert('Success', 'Device deleted successfully');
+            } catch (error) {
+              console.error('[Settings] Error deleting device:', error);
+              const errorMsg = error.message || 'Failed to delete device';
+              Alert.alert('Delete Failed', `Could not delete device:\n${errorMsg}`);
+            } finally {
+              setDeletingDeviceId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       'Log Out',
@@ -355,21 +411,57 @@ const SettingsScreen = () => {
           ) : devices.length > 0 ? (
             <FlatList
               data={devices}
-              keyExtractor={(item, index) => item?.id || item?.deviceId || `device-${index}`}
+              keyExtractor={(item, index) => item?.id || `device-${index}`}
               scrollEnabled={false}
               renderItem={({ item }) => {
-                const isConnected = connectedDevice?.deviceId === item.deviceId || connectedDevice?.id === item.deviceId;
+                // Handle deviceId as array (from API response)
+                const deviceIds = Array.isArray(item.deviceId) ? item.deviceId : [item.deviceId].filter(Boolean);
+                const primaryDeviceId = deviceIds[0] || item.id || 'N/A';
+                
+                // Check if connected device matches any deviceId in the array
+                const isConnected = deviceIds.some(
+                  (deviceId) => 
+                    connectedDevice?.deviceId === deviceId || 
+                    connectedDevice?.id === deviceId
+                ) || connectedDevice?.id === item.id;
+                
+                const isDeleting = deletingDeviceId === item.id;
+                
                 return (
                   <View style={styles.deviceItem}>
                     <View style={styles.deviceInfo}>
-                      <Text style={styles.deviceName}>{item.name || item.deviceId || 'Unknown Device'}</Text>
-                      <Text style={styles.deviceId}>{item.deviceId || item.id || 'N/A'}</Text>
+                      <Text style={styles.deviceName}>
+                        {item.name || `Device ${item.id?.substring(0, 8) || 'Unknown'}`}
+                      </Text>
+                      <Text style={styles.deviceId}>
+                        {deviceIds.length > 0 
+                          ? (deviceIds.length === 1 ? primaryDeviceId : `${deviceIds.length} devices: ${deviceIds.join(', ')}`)
+                          : item.id || 'N/A'
+                        }
+                      </Text>
+                      {item.createdAt && (
+                        <Text style={styles.deviceDate}>
+                          Added: {new Date(item.createdAt).toLocaleDateString()}
+                        </Text>
+                      )}
                     </View>
-                    {isConnected && (
-                      <View style={styles.connectedBadge}>
-                        <Text style={styles.connectedBadgeText}>Connected</Text>
-                      </View>
-                    )}
+                    <View style={styles.deviceActions}>
+                      {isConnected && (
+                        <View style={styles.connectedBadge}>
+                          <Text style={styles.connectedBadgeText}>Connected</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={[styles.deleteButton, isDeleting && styles.deleteButtonDisabled]}
+                        onPress={() => handleDeleteDevice(item)}
+                        disabled={isDeleting}>
+                        {isDeleting ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.deleteButtonText}>Delete</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 );
               }}
@@ -472,28 +564,6 @@ const SettingsScreen = () => {
     </View>
   );
 };
-
-/* ---------- Hold Duration Button Renderer ---------- */
-const renderHoldButton = (value, selected, setSelected, note) => (
-  <TouchableOpacity
-    key={value}
-    style={[
-      styles.holdBtn,
-      selected === value && styles.holdActive,
-    ]}
-    onPress={() => setSelected(value)}
-  >
-    <Text
-      style={[
-        styles.holdText,
-        selected === value && styles.holdTextActive,
-      ]}
-    >
-      {value}s {note ? `• ${note}` : ''}
-    </Text>
-  </TouchableOpacity>
-);
-
 
 const styles = StyleSheet.create({
   container: {
@@ -726,6 +796,11 @@ const styles = StyleSheet.create({
   deviceInfo: {
     flex: 1,
   },
+  deviceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   deviceName: {
     color: 'white',
     fontSize: 16,
@@ -735,6 +810,12 @@ const styles = StyleSheet.create({
   deviceId: {
     color: '#ffffff',
     fontSize: 12,
+    marginTop: 4,
+  },
+  deviceDate: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    marginTop: 4,
   },
   connectedBadge: {
     backgroundColor: '#064e3b',
@@ -744,6 +825,23 @@ const styles = StyleSheet.create({
   },
   connectedBadgeText: {
     color: '#d1fae5',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
   },
