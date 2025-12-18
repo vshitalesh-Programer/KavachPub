@@ -1,6 +1,7 @@
 import { BleManager } from 'react-native-ble-plx';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
 import { PermissionsAndroid, Platform } from 'react-native';
+import { SERVICE_UUID, CHAR_UUID } from '../constants/BluetoothConstants';
 
 // Base64 decode helper (React Native compatible)
 /* eslint-disable no-bitwise */
@@ -337,8 +338,131 @@ class BluetoothService {
     }
   }
 
+  /**
+   * Global notification subscription reference
+   * This allows cleanup from anywhere in the app
+   */
+  notificationSubscription = null;
+
+  /**
+   * Get a connected device by ID
+   * @param {string} deviceId - Device ID to retrieve
+   * @returns {Promise<Device|null>} Connected device or null if not found
+   */
+  async getDeviceById(deviceId) {
+    try {
+      const devices = await this.getConnectedDevices([SERVICE_UUID]);
+      const device = devices.find(d => d.id === deviceId);
+      if (device) {
+        console.log('✅ [BLE-PLX] Found device by ID:', deviceId);
+        return device;
+      }
+      console.warn('⚠️ [BLE-PLX] Device not found by ID:', deviceId);
+      return null;
+    } catch (error) {
+      console.error('🔴 [BLE-PLX] Error getting device by ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Setup notifications for a connected device
+   * This should be called whenever a device is connected, from any screen
+   * @param {string} deviceId - Device ID (can get device from Redux or BLE manager)
+   * @param {Function} onHexReceived - Callback when hex value is received
+   * @param {Function} onSOSDetected - Callback when SOS hex (01) is detected
+   * @returns {Promise<Subscription>} Subscription object
+   */
+  async setupNotifications(deviceId, onHexReceived, onSOSDetected) {
+    try {
+      // Clean up existing subscription if any
+      if (this.notificationSubscription) {
+        try {
+          this.notificationSubscription.remove();
+        } catch (e) {
+          console.warn('⚠️ [BLE-PLX] Error removing old subscription:', e);
+        }
+        this.notificationSubscription = null;
+      }
+
+      // Get device by ID from connected devices
+      const device = await this.getDeviceById(deviceId);
+      if (!device) {
+        throw new Error(`Device with ID ${deviceId} is not connected`);
+      }
+
+      // Discover services if not already done
+      await device.discoverAllServicesAndCharacteristics();
+      
+      // Monitor characteristic for notifications
+      const subscription = this.monitorCharacteristic(
+        device,
+        SERVICE_UUID,
+        CHAR_UUID,
+        (hex, characteristic) => {
+          console.log(`🔔 [BLE-PLX] Notification received: ${hex}`);
+          
+          // Call the hex received callback first (update Redux state)
+          if (onHexReceived) {
+            onHexReceived(hex);
+          }
+          
+          // Check for SOS trigger
+          if (hex === '01' || hex === '0x01') {
+            console.log('🚨 [BLE-PLX] SOS hex detected, triggering SOS');
+            // Trigger SOS handler
+            if (onSOSDetected) {
+              onSOSDetected();
+            }
+          }
+        }
+      );
+      
+      this.notificationSubscription = subscription;
+      console.log('✅ [BLE-PLX] Notifications setup complete');
+
+      // Read initial value
+      try {
+        const hex = await this.readCharacteristic(device, SERVICE_UUID, CHAR_UUID);
+        console.log('📖 [BLE-PLX] Initial read:', hex);
+        if (onHexReceived) {
+          onHexReceived(hex);
+        }
+        if (hex === '01' || hex === '0x01') {
+          console.log('🚨 [BLE-PLX] SOS hex detected on initial read');
+          if (onSOSDetected) {
+            onSOSDetected();
+          }
+        }
+      } catch (readErr) {
+        console.warn('⚠️ [BLE-PLX] Initial read failed:', readErr);
+      }
+
+      return subscription;
+    } catch (error) {
+      console.error('🔴 [BLE-PLX] Setup notifications failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Stop notifications
+   */
+  stopNotifications() {
+    if (this.notificationSubscription) {
+      try {
+        this.notificationSubscription.remove();
+        console.log('✅ [BLE-PLX] Notifications stopped');
+      } catch (error) {
+        console.error('🔴 [BLE-PLX] Error stopping notifications:', error);
+      }
+      this.notificationSubscription = null;
+    }
+  }
+
   // Cleanup
   destroy() {
+    this.stopNotifications();
     if (this.manager) {
       this.manager.destroy();
       this.isInitialized = false;

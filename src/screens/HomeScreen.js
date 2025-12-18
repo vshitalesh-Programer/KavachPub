@@ -10,6 +10,7 @@ import Geolocation from 'react-native-geolocation-service';
 import DeviceInfo from 'react-native-device-info';
 import { useDispatch, useSelector } from 'react-redux';
 import { addIncident } from '../redux/slices/incidentSlice';
+import { setLastHex, setNotificationsActive } from '../redux/slices/deviceSlice';
 import AppFonts from '../utils/AppFonts';
 import { SERVICE_UUID, CHAR_UUID, DEVICE_NAME } from '../constants/BluetoothConstants';
 
@@ -18,19 +19,20 @@ const HomeScreen = ({ navigation }) => {
   const [peripherals, setPeripherals] = useState(new Map());
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLogModalVisible, setIsLogModalVisible] = useState(false);
-  const [lastHex, setLastHex] = useState(null);
   const [connectedDeviceId, setConnectedDeviceId] = useState(null);
   const [triggerHistory, setTriggerHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [userDevices, setUserDevices] = useState([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
-  const monitorSubscriptionRef = useRef(null);
   const scanTimeoutRef = useRef(null);
   const scanSubscriptionRef = useRef(null);
+  const notificationSubscriptionRef = useRef(null);
   const dispatch = useDispatch();
   const incidents = useSelector(state => state.incidents.incidents);
   const contacts = useSelector(state => state.contacts.contacts) || [];
   const connectedDeviceFromRedux = useSelector(state => state.device.connectedDevice);
+  const lastHex = useSelector(state => state.device.lastHex);
+  const notificationsActive = useSelector(state => state.device.notificationsActive);
 
   // Flatten contacts if they are sectioned
   const contactCount = contacts.reduce((acc, section) => acc + (section.data ? section.data.length : 0), 0);
@@ -40,7 +42,7 @@ const HomeScreen = ({ navigation }) => {
   // Get last trigger from API history (prefer API data over local incidents)
   const lastTrigger = triggerHistory.length > 0 ? triggerHistory[0] : null;
 
-  const fetchTriggerHistory = async () => {
+  const fetchTriggerHistory = useCallback(async () => {
     try {
       setIsLoadingHistory(true);
       const history = await ApiService.getTriggerHistory();
@@ -68,7 +70,7 @@ const HomeScreen = ({ navigation }) => {
     } finally {
       setIsLoadingHistory(false);
     }
-  };
+  }, []);
 
   // Fetch trigger history and devices on mount
   useEffect(() => {
@@ -129,8 +131,88 @@ const HomeScreen = ({ navigation }) => {
       if (scanSubscriptionRef.current) {
         BluetoothService.stopScan();
       }
-      if (monitorSubscriptionRef.current) {
-        monitorSubscriptionRef.current.remove();
+    };
+  }, []);
+
+  // Setup notifications for connected device
+  const setupNotifications = useCallback(async (deviceId) => {
+    try {
+      console.log('🔔 [HomeScreen] Setting up notifications for device:', deviceId);
+      
+      // Get device from connected devices
+      const connectedDevices = await BluetoothService.getConnectedDevices([SERVICE_UUID]);
+      const device = connectedDevices.find(d => d.id === deviceId);
+      
+      if (!device) {
+        throw new Error(`Device with ID ${deviceId} is not connected`);
+      }
+
+      // Clean up existing subscription if any
+      if (notificationSubscriptionRef.current) {
+        try {
+          notificationSubscriptionRef.current.remove();
+        } catch (e) {
+          console.warn('⚠️ [HomeScreen] Error removing old subscription:', e);
+        }
+        notificationSubscriptionRef.current = null;
+      }
+
+      // Discover services if not already done
+      await device.discoverAllServicesAndCharacteristics();
+
+      // Monitor characteristic for notifications
+      const subscription = BluetoothService.monitorCharacteristic(
+        device,
+        SERVICE_UUID,
+        CHAR_UUID,
+        (hex, characteristic) => {
+          console.log(`🔔 [HomeScreen] Notification received: ${hex}`);
+          
+          // Update Redux state
+          dispatch(setLastHex(hex));
+          
+          // Check for SOS trigger
+          if (hex === '01' || hex === '0x01') {
+            console.log('🚨 [HomeScreen] SOS hex detected, triggering SOS');
+            // Trigger SOS handler directly
+            handleSOS();
+          }
+        }
+      );
+
+      notificationSubscriptionRef.current = subscription;
+      dispatch(setNotificationsActive(true));
+      console.log('✅ [HomeScreen] Notifications setup complete');
+
+      // Read initial value
+      try {
+        const hex = await BluetoothService.readCharacteristic(device, SERVICE_UUID, CHAR_UUID);
+        console.log('📖 [HomeScreen] Initial read:', hex);
+        dispatch(setLastHex(hex));
+        if (hex === '01' || hex === '0x01') {
+          console.log('🚨 [HomeScreen] SOS hex detected on initial read');
+          handleSOS();
+        }
+      } catch (readErr) {
+        console.warn('⚠️ [HomeScreen] Initial read failed:', readErr);
+      }
+    } catch (error) {
+      console.error('🔴 [HomeScreen] Failed to setup notifications:', error);
+      dispatch(setNotificationsActive(false));
+      throw error;
+    }
+  }, [dispatch, handleSOS]);
+
+  // Cleanup notifications on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationSubscriptionRef.current) {
+        try {
+          notificationSubscriptionRef.current.remove();
+        } catch (e) {
+          console.warn('⚠️ [HomeScreen] Error removing notification subscription:', e);
+        }
+        notificationSubscriptionRef.current = null;
       }
     };
   }, []);
@@ -160,11 +242,30 @@ const HomeScreen = ({ navigation }) => {
           if (isActuallyConnected) {
             setConnectedDeviceId(deviceId);
             console.log('[HomeScreen] Device confirmed connected via Bluetooth');
+            
+            // Setup notifications if not already active
+            if (!notificationsActive) {
+              try {
+                await setupNotifications(deviceId);
+              } catch (notifyErr) {
+                console.warn('⚠️ [HomeScreen] Failed to setup notifications:', notifyErr);
+              }
+            }
             return;
           } else {
             // Device in Redux but not actually connected - clear it
             console.log('[HomeScreen] Device in Redux but not actually connected');
             setConnectedDeviceId(null);
+            // Stop notifications if device is not connected
+            if (notificationSubscriptionRef.current) {
+              try {
+                notificationSubscriptionRef.current.remove();
+                notificationSubscriptionRef.current = null;
+                dispatch(setNotificationsActive(false));
+              } catch (e) {
+                console.warn('⚠️ [HomeScreen] Error stopping notifications:', e);
+              }
+            }
           }
         } catch (error) {
           console.warn('[HomeScreen] Error verifying connection:', error);
@@ -182,10 +283,10 @@ const HomeScreen = ({ navigation }) => {
           console.log('🎯 [BLE-PLX] Found already-connected Kavach device:', device.id);
           setConnectedDeviceId(device.id);
           
-          // Setup notifications if not already set up
-          if (!monitorSubscriptionRef.current) {
+          // Setup notifications if not already active
+          if (!notificationsActive) {
             try {
-              await setupNotifications(device);
+              await setupNotifications(device.id);
             } catch (notifyErr) {
               console.warn('⚠️ [BLE-PLX] Failed to setup notifications:', notifyErr);
             }
@@ -194,14 +295,24 @@ const HomeScreen = ({ navigation }) => {
         }
       }
       
-      // If no devices found, clear the connection state
+      // If no devices found, clear the connection state and stop notifications
       if (connectedDevices.length === 0) {
         setConnectedDeviceId(null);
+        // Stop notifications
+        if (notificationSubscriptionRef.current) {
+          try {
+            notificationSubscriptionRef.current.remove();
+            notificationSubscriptionRef.current = null;
+            dispatch(setNotificationsActive(false));
+          } catch (e) {
+            console.warn('⚠️ [HomeScreen] Error stopping notifications:', e);
+          }
+        }
       }
     } catch (error) {
       console.warn('⚠️ [BLE-PLX] Error checking connected devices:', error);
     }
-  }, [connectedDeviceFromRedux]);
+  }, [connectedDeviceFromRedux, notificationsActive, setupNotifications]);
 
   // Check on mount
   useEffect(() => {
@@ -253,73 +364,6 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const setupNotifications = async (device) => {
-    try {
-      // Discover services if not already done
-      await device.discoverAllServicesAndCharacteristics();
-      
-      // Monitor characteristic for notifications
-      const subscription = BluetoothService.monitorCharacteristic(
-        device,
-        SERVICE_UUID,
-        CHAR_UUID,
-        (hex, characteristic) => {
-          console.log(`🔔 [BLE-PLX] Notification received: ${hex}`);
-          setLastHex(hex);
-          
-          if (__DEV__) {
-            Alert.alert(
-              '🔔 Notification Received',
-              `Device: ${device.name || device.id}\nHex Value: ${hex || 'empty'}`,
-              [{ text: 'OK' }]
-            );
-          }
-          
-          if (hex === '01' || hex === '0x01') {
-            console.log('🚨 [BLE-PLX] SOS hex detected, triggering SOS');
-            if (__DEV__) {
-              Alert.alert(
-                '🚨 SOS Triggered!',
-                `Hex value "01" detected!\nTriggering emergency SOS...`,
-                [{ text: 'OK' }]
-              );
-            }
-            handleSOS();
-          }
-        }
-      );
-      
-      monitorSubscriptionRef.current = subscription;
-      console.log('✅ [BLE-PLX] Notifications setup complete');
-      
-      if (__DEV__) {
-        Alert.alert(
-          '✅ Notifications Started',
-          `Notifications setup complete.\nListening for hex values...`,
-          [{ text: 'OK' }]
-        );
-      }
-
-      // Read initial value
-      try {
-        const hex = await BluetoothService.readCharacteristic(device, SERVICE_UUID, CHAR_UUID);
-        console.log('📖 [BLE-PLX] Initial read:', hex);
-        setLastHex(hex);
-        if (__DEV__) {
-          Alert.alert('📖 Initial Read', `Received hex value: ${hex || 'empty'}`, [{ text: 'OK' }]);
-        }
-        if (hex === '01' || hex === '0x01') {
-          console.log('🚨 [BLE-PLX] SOS hex detected on initial read');
-          handleSOS();
-        }
-      } catch (readErr) {
-        console.warn('⚠️ [BLE-PLX] Initial read failed:', readErr);
-      }
-    } catch (error) {
-      console.error('🔴 [BLE-PLX] Setup notifications failed:', error);
-      throw error;
-    }
-  };
 
   const startScan = async () => {
     try {
@@ -407,7 +451,16 @@ const HomeScreen = ({ navigation }) => {
       );
 
       // Setup notifications
-      await setupNotifications(connectedDeviceObj);
+      try {
+        await setupNotifications(connectedDeviceObj.id);
+      } catch (notifyErr) {
+        console.warn('⚠️ [BLE-PLX] Failed to setup notifications:', notifyErr);
+        Alert.alert(
+          'Connection Successful',
+          'Device connected but notifications could not be set up. You can try reconnecting.',
+          [{ text: 'OK' }]
+        );
+      }
 
       setIsModalVisible(false);
     } catch (error) {
@@ -485,7 +538,7 @@ const HomeScreen = ({ navigation }) => {
 
   const handleSOS = useCallback(async () => {
     try {
-      console.log('Triggering SOS...');
+      console.log('🚨 [HomeScreen] Triggering SOS...');
 
       let ipAddress = '0.0.0.0';
       try {
@@ -514,7 +567,7 @@ const HomeScreen = ({ navigation }) => {
           ip: ipAddress,
         };
 
-        console.log('Dispatching SOS incident:', incidentData);
+        console.log('🚨 [HomeScreen] Dispatching SOS incident:', incidentData);
         dispatch(addIncident(incidentData));
 
         // Send to API
@@ -525,12 +578,16 @@ const HomeScreen = ({ navigation }) => {
             deviceId: DeviceInfo ? await DeviceInfo.getUniqueId() : 'unknown',
             deviceInfo: DeviceInfo ? await DeviceInfo.getDeviceName() : 'unknown',
           };
+          console.log('🚨 [HomeScreen] Calling API triggerEmergency with:', locationData);
           const response = await ApiService.triggerEmergency(locationData);
+          console.log('✅ [HomeScreen] API call successful:', response);
           const message = response?.message || 'Emergency Alert Sent! Help is on the way.';
           Alert.alert('SOS Sent', message);
+          // Refresh trigger history after API call
+          console.log('🔄 [HomeScreen] Refreshing trigger history...');
           fetchTriggerHistory();
         } catch (err) {
-          console.error('API Error:', err);
+          console.error('🚨 [HomeScreen] API Error:', err);
           Alert.alert('SOS Saved', 'Logged locally. Failed to send to server.');
         }
       };
@@ -549,7 +606,7 @@ const HomeScreen = ({ navigation }) => {
     } catch (error) {
       Alert.alert('Error', `Failed to initiate SOS: ${error.message || error}`);
     }
-  }, [dispatch]);
+  }, [dispatch, fetchTriggerHistory]);
 
   return (
     <LinearGradient
@@ -582,7 +639,7 @@ const HomeScreen = ({ navigation }) => {
 
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>Incidents</Text>
-              <Text style={styles.statValue}>{incidents.length > 0 ? incidents.length : '-'}</Text>
+              <Text style={styles.statValue}>{triggerHistory.length > 0 ? triggerHistory.length : '-'}</Text>
             </View>
           </View>
 

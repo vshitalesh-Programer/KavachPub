@@ -8,8 +8,9 @@
     </item>
 
     <!-- Centered logo -->
+    <!-- Option 1: Use XML drawable (current) -->
     <item
         android:gravity="center"
-        android:drawable="@drawable/kavach_logo" />
+        android:drawable="@drawable/playstore" />
 </layer-list>
 

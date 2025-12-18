@@ -5,6 +5,8 @@ const initialState = {
   isConnected: false,
   isLoading: false,
   error: null,
+  lastHex: null, // Last hex value received from device
+  notificationsActive: false, // Whether notifications are currently active
 };
 
 const deviceSlice = createSlice({
@@ -28,6 +30,12 @@ const deviceSlice = createSlice({
       state.error = action.payload;
       state.isLoading = false;
     },
+    setLastHex: (state, action) => {
+      state.lastHex = action.payload;
+    },
+    setNotificationsActive: (state, action) => {
+      state.notificationsActive = action.payload;
+    },
   },
 });
 
@@ -36,6 +44,8 @@ export const {
   clearConnectedDevice,
   setDeviceLoading,
   setDeviceError,
+  setLastHex,
+  setNotificationsActive,
 } = deviceSlice.actions;
 
 export default deviceSlice.reducer;

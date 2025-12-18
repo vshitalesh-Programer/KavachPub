@@ -20,6 +20,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ApiService from '../services/ApiService';
 import BluetoothService from '../services/BluetoothService';
+// import NotificationManager from '../services/NotificationManager';
 import { persistor } from '../redux/store';
 import AppFonts from '../utils/AppFonts';
 import { SERVICE_UUID, DEVICE_NAME } from '../constants/BluetoothConstants';
@@ -175,8 +176,17 @@ const SettingsScreen = () => {
       }
 
       // Connect to device
-      await BluetoothService.connectToDevice(device.id);
+      const connectedDeviceObj = await BluetoothService.connectToDevice(device.id);
       console.log('[Settings] Connected successfully');
+
+      // Setup notifications
+      // try {
+      //   await NotificationManager.setupNotifications(connectedDeviceObj.id);
+      //   console.log('[Settings] Notifications setup complete');
+      // } catch (notifyErr) {
+      //   console.warn('[Settings] Failed to setup notifications:', notifyErr);
+      //   // Continue even if notifications fail
+      // }
 
       // Register device in backend
       try {

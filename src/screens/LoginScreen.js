@@ -204,7 +204,7 @@ const LoginScreen = ({navigation}) => {
             {/* Welcome Message */}
             <Text style={styles.welcomeTitle}>Welcome back</Text>
             <Text style={styles.welcomeSubtitle}>
-              Log in to access your MyoTrack console.
+              Log in to access your Kavach console.
             </Text>
 
             {/* Input Fields */}

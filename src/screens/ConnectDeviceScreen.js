@@ -15,6 +15,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
+// import NotificationManager from '../services/NotificationManager';
 import { normalize } from '../utils/AppFonts';
 import { useDispatch } from 'react-redux';
 import { setConnectedDevice } from '../redux/slices/deviceSlice';
@@ -224,8 +225,17 @@ const ConnectDeviceScreen = ({ navigation }) => {
       }
 
       // Connect to device
-      await BluetoothService.connectToDevice(device.id);
+      const connectedDeviceObj = await BluetoothService.connectToDevice(device.id);
       console.log('[ConnectDevice] Connected successfully');
+
+      // Setup notifications
+      // try {
+      //   await NotificationManager.setupNotifications(connectedDeviceObj.id);
+      //   console.log('[ConnectDevice] Notifications setup complete');
+      // } catch (notifyErr) {
+      //   console.warn('[ConnectDevice] Failed to setup notifications:', notifyErr);
+      //   // Continue even if notifications fail
+      // }
 
       // Create device in backend with new API format
       try {
