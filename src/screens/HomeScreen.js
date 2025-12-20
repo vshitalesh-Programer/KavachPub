@@ -1,11 +1,12 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-alert */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, Alert, ScrollView, PermissionsAndroid, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, Alert, ScrollView, PermissionsAndroid, Platform, Image, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
+import BackgroundService from '../services/BackgroundService';
 import Geolocation from 'react-native-geolocation-service';
 import DeviceInfo from 'react-native-device-info';
 import { useDispatch, useSelector } from 'react-redux';
@@ -24,6 +25,7 @@ const HomeScreen = ({ navigation }) => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [userDevices, setUserDevices] = useState([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [hasBackgroundLocationPermission, setHasBackgroundLocationPermission] = useState(false);
   const scanTimeoutRef = useRef(null);
   const scanSubscriptionRef = useRef(null);
   const notificationSubscriptionRef = useRef(null);
@@ -109,10 +111,11 @@ const HomeScreen = ({ navigation }) => {
     fetchDevices();
   }, []);
 
-  // Initialize BLE on mount
+  // Initialize BLE and Background Service on mount
   useEffect(() => {
-    const initBLE = async () => {
+    const initServices = async () => {
       try {
+        // Initialize BLE
         const hasPermissions = await BluetoothService.requestPermissions();
         if (hasPermissions) {
           await BluetoothService.initialize();
@@ -120,11 +123,71 @@ const HomeScreen = ({ navigation }) => {
         } else {
           console.warn('⚠️ [BLE-PLX] Permissions not granted');
         }
+
+        // Notification permissions are requested in ConnectDeviceScreen
+        // Setup notification event handlers here
+        BackgroundService.setupNotificationHandlers();
+
+        // Request location permissions (including background for Android 10+)
+        if (Platform.OS === 'android') {
+          try {
+            // Request fine location first
+            const fineLocationGranted = await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+              {
+                title: 'Location Permission',
+                message: 'Kavach needs location access to send your location during emergencies.',
+                buttonNeutral: 'Ask Me Later',
+                buttonNegative: 'Cancel',
+                buttonPositive: 'OK',
+              }
+            );
+
+            if (fineLocationGranted === PermissionsAndroid.RESULTS.GRANTED) {
+              console.log('✅ [HomeScreen] Fine location permission granted');
+              
+              // Request background location for Android 10+ (API 29+)
+              try {
+                const backgroundLocationGranted = await PermissionsAndroid.request(
+                  PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+                  {
+                    title: 'Background Location Permission',
+                    message: 'Kavach needs background location access to send your location even when the app is in the background.',
+                    buttonNeutral: 'Ask Me Later',
+                    buttonNegative: 'Cancel',
+                    buttonPositive: 'OK',
+                  }
+                );
+                if (backgroundLocationGranted === PermissionsAndroid.RESULTS.GRANTED) {
+                  console.log('✅ [HomeScreen] Background location permission granted');
+                } else {
+                  console.warn('⚠️ [HomeScreen] Background location permission denied');
+                }
+              } catch (bgError) {
+                // Background location permission might not be available on older Android versions
+                console.log('ℹ️ [HomeScreen] Background location permission not available:', bgError);
+              }
+            } else {
+              console.warn('⚠️ [HomeScreen] Location permission denied');
+            }
+          } catch (locationError) {
+            console.error('🔴 [HomeScreen] Location permission request failed:', locationError);
+          }
+        }
+
+        // Setup app state monitoring for background handling
+        BackgroundService.setupAppStateMonitoring();
+        
+        // Setup notification event handlers (for action buttons)
+        BackgroundService.setupNotificationHandlers();
+
+        // Check background location permission status
+        checkBackgroundLocationPermission();
       } catch (error) {
-        console.error('🔴 [BLE-PLX] Initialization failed:', error);
+        console.error('🔴 [HomeScreen] Initialization failed:', error);
       }
     };
-    initBLE();
+    initServices();
 
     return () => {
       // Cleanup on unmount
@@ -134,7 +197,7 @@ const HomeScreen = ({ navigation }) => {
     };
   }, []);
 
-  // Setup notifications for connected device
+  // Setup notifications for connected device (foreground)
   const setupNotifications = useCallback(async (deviceId) => {
     try {
       console.log('🔔 [HomeScreen] Setting up notifications for device:', deviceId);
@@ -160,7 +223,7 @@ const HomeScreen = ({ navigation }) => {
       // Discover services if not already done
       await device.discoverAllServicesAndCharacteristics();
 
-      // Monitor characteristic for notifications
+      // Monitor characteristic for notifications (foreground)
       const subscription = BluetoothService.monitorCharacteristic(
         device,
         SERVICE_UUID,
@@ -171,7 +234,7 @@ const HomeScreen = ({ navigation }) => {
           // Update Redux state
           dispatch(setLastHex(hex));
           
-          // Check for SOS trigger
+          // Check for SOS trigger (foreground handling)
           if (hex === '01' || hex === '0x01') {
             console.log('🚨 [HomeScreen] SOS hex detected, triggering SOS');
             // Trigger SOS handler directly
@@ -195,6 +258,16 @@ const HomeScreen = ({ navigation }) => {
         }
       } catch (readErr) {
         console.warn('⚠️ [HomeScreen] Initial read failed:', readErr);
+      }
+
+      // Setup background monitoring separately (only triggers when app is in background)
+      try {
+        console.log('🔔 [HomeScreen] Setting up background monitoring for device:', deviceId);
+        await BackgroundService.setupBackgroundMonitoring(deviceId);
+        console.log('✅ [HomeScreen] Background monitoring setup complete');
+      } catch (bgError) {
+        console.warn('⚠️ [HomeScreen] Failed to setup background monitoring:', bgError);
+        // Don't throw - foreground monitoring is still active
       }
     } catch (error) {
       console.error('🔴 [HomeScreen] Failed to setup notifications:', error);
@@ -266,6 +339,8 @@ const HomeScreen = ({ navigation }) => {
                 console.warn('⚠️ [HomeScreen] Error stopping notifications:', e);
               }
             }
+            // Stop background monitoring
+            BackgroundService.stopBackgroundMonitoring();
           }
         } catch (error) {
           console.warn('[HomeScreen] Error verifying connection:', error);
@@ -308,6 +383,8 @@ const HomeScreen = ({ navigation }) => {
             console.warn('⚠️ [HomeScreen] Error stopping notifications:', e);
           }
         }
+        // Stop background monitoring
+        BackgroundService.stopBackgroundMonitoring();
       }
     } catch (error) {
       console.warn('⚠️ [BLE-PLX] Error checking connected devices:', error);
@@ -319,10 +396,126 @@ const HomeScreen = ({ navigation }) => {
     // Delay to allow BLE to initialize
     const timer = setTimeout(() => {
       checkConnectedDevices();
+      checkBackgroundLocationPermission();
     }, 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Check background location permission status
+  const checkBackgroundLocationPermission = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        // Check if background location permission is granted
+        const hasPermission = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
+        );
+        setHasBackgroundLocationPermission(hasPermission);
+        console.log(`📍 [HomeScreen] Background location permission: ${hasPermission ? 'Granted' : 'Not granted'}`);
+      } catch (error) {
+        console.error('🔴 [HomeScreen] Error checking background location permission:', error);
+        setHasBackgroundLocationPermission(false);
+      }
+    } else {
+      // iOS - assume granted if fine location is granted
+      setHasBackgroundLocationPermission(true);
+    }
+  }, []);
+
+  // Request background location permission directly
+  const requestBackgroundLocationPermission = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        // First check if fine location is granted (required before background location)
+        const hasFineLocation = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+        );
+
+        if (!hasFineLocation) {
+          // Request fine location first
+          const fineLocationGranted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+              title: 'Location Permission',
+              message: 'Kavach needs location access to send your location during emergencies.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            }
+          );
+
+          if (fineLocationGranted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert(
+              'Permission Required',
+              'Fine location permission is required before background location can be enabled.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+        }
+
+        // Now request background location permission
+        console.log('📍 [HomeScreen] Requesting background location permission...');
+        const backgroundLocationGranted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+          {
+            title: 'Background Location Permission',
+            message: 'Kavach needs "Allow all the time" location access to send your location during emergencies even when the app is in the background. Please select "Allow all the time" in the next screen.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+
+        if (backgroundLocationGranted === PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('✅ [HomeScreen] Background location permission granted');
+          setHasBackgroundLocationPermission(true);
+          Alert.alert(
+            '✅ Permission Granted',
+            'Background location access has been enabled. Kavach can now send your location during emergencies even when the app is in the background.',
+            [{ text: 'OK' }]
+          );
+        } else if (backgroundLocationGranted === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+          console.warn('⚠️ [HomeScreen] Background location permission denied permanently');
+          Alert.alert(
+            'Permission Denied',
+            'Background location permission was denied. To enable it, please go to:\n\nSettings > Apps > Kavach > Permissions > Location\n\nThen select "Allow all the time"',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Open Settings', 
+                onPress: () => Linking.openSettings()
+              },
+            ]
+          );
+        } else {
+          console.warn('⚠️ [HomeScreen] Background location permission denied');
+          setHasBackgroundLocationPermission(false);
+        }
+
+        // Re-check permission status
+        await checkBackgroundLocationPermission();
+      } catch (error) {
+        console.error('🔴 [HomeScreen] Error requesting background location permission:', error);
+        Alert.alert(
+          'Error',
+          'Failed to request background location permission. Please enable it manually in Settings > Apps > Kavach > Permissions > Location.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => Linking.openSettings()
+            },
+          ]
+        );
+      }
+    } else {
+      // iOS - open settings
+      Linking.openURL('app-settings:').catch((err) => {
+        console.error('🔴 [HomeScreen] Error opening settings:', err);
+      });
+    }
+  }, [checkBackgroundLocationPermission]);
 
   // Check when screen comes into focus
   useFocusEffect(
@@ -330,9 +523,10 @@ const HomeScreen = ({ navigation }) => {
       // Check connection status when screen is focused
       const timer = setTimeout(() => {
         checkConnectedDevices();
+        checkBackgroundLocationPermission();
       }, 500);
       return () => clearTimeout(timer);
-    }, [checkConnectedDevices])
+    }, [checkConnectedDevices, checkBackgroundLocationPermission])
   );
 
   // Format trigger date for display
@@ -662,6 +856,34 @@ const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Background Location Permission Card */}
+          <TouchableOpacity 
+            style={styles.locationPermissionCard}
+            onPress={requestBackgroundLocationPermission}
+            activeOpacity={0.7}
+          >
+            <View style={styles.locationPermissionContent}>
+              <View style={styles.locationPermissionLeft}>
+                <Text style={styles.locationPermissionIcon}>
+                  {hasBackgroundLocationPermission ? '✅' : '⚠️'}
+                </Text>
+                <View>
+                  <Text style={styles.locationPermissionTitle}>
+                    Background Location
+                  </Text>
+                  <Text style={styles.locationPermissionSubtitle}>
+                    {hasBackgroundLocationPermission 
+                      ? 'All-time location access enabled' 
+                      : 'Tap to enable all-time location access'}
+                  </Text>
+                </View>
+              </View>
+              {!hasBackgroundLocationPermission && (
+                <Text style={styles.locationPermissionArrow}>→</Text>
+              )}
+            </View>
+          </TouchableOpacity>
 
           {/* Scan Bluetooth Devices Card */}
           <TouchableOpacity style={styles.scanCard} onPress={openScanModal}>
@@ -994,6 +1216,51 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: AppFonts.n(12),
     fontWeight: '600',
+  },
+
+  locationPermissionCard: {
+    backgroundColor: '#68778f',
+    borderRadius: AppFonts.n(16),
+    padding: AppFonts.n(12),
+    marginBottom: AppFonts.nH(18),
+    marginHorizontal: AppFonts.nW(20),
+    borderWidth: AppFonts.n(1),
+    borderColor: '#94a0b2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 10,
+  },
+  locationPermissionContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  locationPermissionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  locationPermissionIcon: {
+    fontSize: AppFonts.n(24),
+    marginRight: AppFonts.nW(12),
+  },
+  locationPermissionTitle: {
+    color: 'white',
+    fontSize: AppFonts.n(14),
+    fontWeight: '600',
+    marginBottom: AppFonts.nH(2),
+  },
+  locationPermissionSubtitle: {
+    color: '#cdd2db',
+    fontSize: AppFonts.n(11),
+  },
+  locationPermissionArrow: {
+    color: '#e98f7c',
+    fontSize: AppFonts.n(20),
+    fontWeight: '700',
+    marginLeft: AppFonts.nW(8),
   },
 
   scanCard: {

@@ -15,6 +15,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import BluetoothService from '../services/BluetoothService';
 import ApiService from '../services/ApiService';
+import BackgroundService from '../services/BackgroundService';
 // import NotificationManager from '../services/NotificationManager';
 import { normalize } from '../utils/AppFonts';
 import { useDispatch } from 'react-redux';
@@ -52,7 +53,17 @@ const ConnectDeviceScreen = ({ navigation }) => {
 
   const initializeBluetooth = async () => {
     try {
-      // Check permissions first
+      // Request notification permissions first (needed for background alerts)
+      console.log('📢 [ConnectDevice] Requesting notification permissions...');
+      const hasNotificationPermission = await BackgroundService.requestNotificationPermissions();
+      if (hasNotificationPermission) {
+        console.log('✅ [ConnectDevice] Notification permissions granted');
+      } else {
+        console.warn('⚠️ [ConnectDevice] Notification permissions not granted');
+        // Continue anyway - user can grant later
+      }
+
+      // Check Bluetooth permissions
       const hasPermissions = await BluetoothService.requestPermissions();
       if (!hasPermissions) {
         setBluetoothError('Bluetooth permissions are required. Please grant permissions in settings.');
