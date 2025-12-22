@@ -30,14 +30,11 @@ const HomeScreen = ({ navigation }) => {
   const scanSubscriptionRef = useRef(null);
   const notificationSubscriptionRef = useRef(null);
   const dispatch = useDispatch();
-  const incidents = useSelector(state => state.incidents.incidents);
-  const contacts = useSelector(state => state.contacts.contacts) || [];
+  const [incidents, setIncidents] = useState(0);
+  const [contacts, setContacts] = useState(0);
   const connectedDeviceFromRedux = useSelector(state => state.device.connectedDevice);
   const lastHex = useSelector(state => state.device.lastHex);
   const notificationsActive = useSelector(state => state.device.notificationsActive);
-
-  // Flatten contacts if they are sectioned
-  const contactCount = contacts.reduce((acc, section) => acc + (section.data ? section.data.length : 0), 0);
 
   const lastLoggedIncident = incidents.length > 0 ? incidents[0] : null;
   
@@ -48,7 +45,6 @@ const HomeScreen = ({ navigation }) => {
     try {
       setIsLoadingHistory(true);
       const history = await ApiService.getTriggerHistory();
-      console.log("🚀 ~ fetchTriggerHistory ~ history:", history);
       
       // Handle different response formats
       const historyList = Array.isArray(history) 
@@ -65,7 +61,6 @@ const HomeScreen = ({ navigation }) => {
         : [];
       
       setTriggerHistory(sortedHistory);
-      console.log('[HomeScreen] Trigger history loaded:', sortedHistory.length, 'items');
     } catch (error) {
       console.error('[HomeScreen] Error fetching trigger history:', error);
       // Don't show error to user, just use local incidents as fallback
@@ -74,18 +69,21 @@ const HomeScreen = ({ navigation }) => {
     }
   }, []);
 
+  const fetchStats = async () => {
+    try {
+      const stats = await ApiService.getStats();
+      console.log("🚀 ~ fetchStats ~ stats:", stats);
+      if (stats) {
+        setIncidents(stats.totalIncidents || 0);
+        setContacts(stats.totalContacts || 0);
+      }
+    } catch (error) {
+      console.error('[HomeScreen] Error fetching stats:', error);
+    }
+  };
+
   // Fetch trigger history and devices on mount
   useEffect(() => {
-    // const postdevice = async () => {
-    //   try {
-    //     const response = await ApiService.createDevice({ deviceId: 'test-id' });
-    //     console.log("🚀 ~ postdevice ~ response:", response);
-    //   } catch (error) {
-    //     console.error('[HomeScreen] Error posting device:', error);
-    //   }
-    // };
-    // postdevice();
-
     const fetchDevices = async () => {
       try {
         setIsLoadingDevices(true);
@@ -109,6 +107,7 @@ const HomeScreen = ({ navigation }) => {
 
     fetchTriggerHistory();
     fetchDevices();
+    fetchStats();
   }, []);
 
   // Initialize BLE and Background Service on mount
@@ -828,12 +827,12 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.statsRow}>
             <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Contacts')}>
               <Text style={styles.statLabel}>Contacts</Text>
-              <Text style={styles.statValue}>{contactCount > 0 ? contactCount : '-'}</Text>
+              <Text style={styles.statValue}>{contacts > 0 ? contacts : '-'}</Text>
             </TouchableOpacity>
 
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>Incidents</Text>
-              <Text style={styles.statValue}>{triggerHistory.length > 0 ? triggerHistory.length : '-'}</Text>
+              <Text style={styles.statValue}>{incidents}</Text>
             </View>
           </View>
 
@@ -1064,7 +1063,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
             ) : (
               <FlatList
-                data={triggerHistory.length > 0 ? triggerHistory : incidents.slice(0, 10)}
+                data={triggerHistory.length > 0 ? triggerHistory : []}
                 keyExtractor={(item, index) => item?.id || item?._id || `trigger-${index}`}
                 contentContainerStyle={styles.listContent}
                 ListEmptyComponent={

@@ -126,6 +126,12 @@ class ApiService {
     return data;
   }
 
+  async updateUser(userData) {
+    // userData: { name, image }
+    const response = await this.api.post(`${AUTH_PREFIX}/update-user`, userData);
+    return this.unwrapResponse(response);
+  }
+
   // --- Contacts ---
   async getContacts() {
     const response = await this.api.get(`${API_V1_PREFIX}/contacts`);
@@ -155,9 +161,23 @@ class ApiService {
     return this.unwrapResponse(response);
   }
 
-  async getTriggerHistory() {
-    const response = await this.api.get(`${API_V1_PREFIX}/trigger/history`);
-    return this.unwrapResponse(response); // Expecting { triggers: [] } or []
+  async getTriggerHistory(cursor = null, pageSize = 20, filters = {}) {
+    const params = { pageSize };
+    if (cursor) {
+      params.cursor = cursor;
+    }
+    // Add optional filters
+    if (filters.status) {
+      params.status = filters.status;
+    }
+    if (filters.startDate) {
+      params.startDate = filters.startDate;
+    }
+    if (filters.endDate) {
+      params.endDate = filters.endDate;
+    }
+    const response = await this.api.get(`${API_V1_PREFIX}/trigger/history`, { params });
+    return this.unwrapResponse(response); // Expecting { triggers: [], pagination: {} } or []
   }
 
   // --- Devices ---
@@ -178,6 +198,28 @@ class ApiService {
   async deleteDevice(deviceId) {
     // deviceId: string - the device ID to delete
     const response = await this.api.delete(`${API_V1_PREFIX}/devices/${deviceId}`);
+    return this.unwrapResponse(response);
+  }
+
+  async getStats() {
+    const response = await this.api.get(`${API_V1_PREFIX}/stats`);
+    return this.unwrapResponse(response);
+  }
+
+  // --- Phone Verification ---
+  async sendOTP(phoneExtension, phoneNumber) {
+    const response = await this.api.post(`${API_V1_PREFIX}/phone/send-otp`, {
+      phoneExtension,
+      phoneNumber,
+    });
+    return this.unwrapResponse(response);
+  }
+
+  async verifyOTP(verificationId, otp) {
+    const response = await this.api.post(`${API_V1_PREFIX}/phone/verify-otp`, {
+      verificationId,
+      otp,
+    });
     return this.unwrapResponse(response);
   }
 }

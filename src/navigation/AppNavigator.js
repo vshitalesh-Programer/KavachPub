@@ -11,6 +11,7 @@ import ContactsScreen from '../screens/ContactsScreen';
 import IncidentsScreen from '../screens/IncidentsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import AddEditContactScreen from '../screens/AddEditContactScreen';
+import PhoneVerificationScreen from '../screens/PhoneVerificationScreen';
 import CustomTabBar from '../components/CustomTabBar';
 
 const Stack = createNativeStackNavigator();
@@ -56,6 +57,7 @@ const AppNavigator = () => {
         <Stack.Screen name="ConnectDevice" component={ConnectDeviceScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="AddEditContact" component={AddEditContactScreen} />
+        <Stack.Screen name="PhoneVerification" component={PhoneVerificationScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

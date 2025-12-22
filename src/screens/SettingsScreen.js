@@ -10,9 +10,10 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../redux/slices/authSlice';
+import { logout, updateUser } from '../redux/slices/authSlice';
 import { clearContacts } from '../redux/slices/contactSlice';
 import { clearIncidents } from '../redux/slices/incidentSlice';
 import { clearConnectedDevice, setConnectedDevice } from '../redux/slices/deviceSlice';
@@ -27,7 +28,7 @@ import { SERVICE_UUID, DEVICE_NAME } from '../constants/BluetoothConstants';
 
 const DEVICE_STORAGE_KEY = '@kavach:connected_device_id';
 
-const SettingsScreen = () => {
+const SettingsScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const user = useSelector(state => state.auth.user);
   const connectedDevice = useSelector(state => state.device.connectedDevice);
@@ -35,10 +36,14 @@ const SettingsScreen = () => {
   const [devices, setDevices] = useState([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [isConnectModalVisible, setIsConnectModalVisible] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [peripherals, setPeripherals] = useState([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [deletingDeviceId, setDeletingDeviceId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editPhoneExtension, setEditPhoneExtension] = useState('+91');
+  const [editPhoneNumber, setEditPhoneNumber] = useState('');
   const scanSubscriptionRef = useRef(null);
   const scanTimeoutRef = useRef(null);
 
@@ -46,6 +51,15 @@ const SettingsScreen = () => {
   useEffect(() => {
     fetchDevices();
   }, []);
+
+  // Initialize edit form when modal opens
+  useEffect(() => {
+    if (isEditModalVisible) {
+      setEditName(user?.name || '');
+      setEditPhoneExtension(user?.phoneExtension || '+91');
+      setEditPhoneNumber(user?.phoneNumber || '');
+    }
+  }, [isEditModalVisible, user]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -176,7 +190,7 @@ const SettingsScreen = () => {
       }
 
       // Connect to device
-      const connectedDeviceObj = await BluetoothService.connectToDevice(device.id);
+      await BluetoothService.connectToDevice(device.id);
       console.log('[Settings] Connected successfully');
 
       // Setup notifications
@@ -312,6 +326,73 @@ const SettingsScreen = () => {
     );
   };
 
+  const handleEditProfile = () => {
+    setIsEditModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+
+    try {
+      // Update name via API first
+      const updatedUser = await ApiService.updateUser({
+        name: editName.trim(),
+        image: user?.image || '', // Keep existing image if no new one provided
+      });
+
+      // If phone number is provided, navigate to verification screen
+      if (editPhoneNumber.trim()) {
+        // Validate phone number format (10 digits)
+        const phoneDigits = editPhoneNumber.replace(/\D/g, '');
+        if (phoneDigits.length !== 10) {
+          Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+          return;
+        }
+
+        // Update Redux with new name first
+        dispatch(updateUser({
+          name: editName.trim(),
+          ...(updatedUser?.user && { ...updatedUser.user }),
+        }));
+
+        // Navigate to phone verification screen
+        navigation.navigate('PhoneVerification', {
+          phoneExtension: editPhoneExtension,
+          phoneNumber: phoneDigits,
+          onVerificationSuccess: async (verificationData) => {
+            // Update user profile with verified phone
+            dispatch(updateUser({
+              name: editName.trim(),
+              phoneExtension: editPhoneExtension,
+              phoneNumber: phoneDigits,
+              phoneVerified: true,
+              ...(updatedUser?.user && { ...updatedUser.user }),
+            }));
+            setIsEditModalVisible(false);
+            Alert.alert('Success', 'Profile updated successfully');
+          },
+        });
+      } else {
+        // Just update name if no phone number
+        dispatch(updateUser({
+          name: editName.trim(),
+          ...(updatedUser?.user && { ...updatedUser.user }),
+        }));
+        setIsEditModalVisible(false);
+        Alert.alert('Success', 'Name updated successfully');
+      }
+    } catch (error) {
+      console.error('[Settings] Error updating profile:', error);
+      Alert.alert(
+        'Update Failed',
+        error.message || 'Failed to update profile. Please try again.'
+      );
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       'Log Out',
@@ -400,6 +481,23 @@ const SettingsScreen = () => {
             <Text style={styles.autoTitle}>User Name</Text>
             <Text style={styles.autoDesc}>{user?.name || 'Kavach User'}</Text>
           </View>
+
+          <View style={[styles.autoTextBox, styles.autoTextBoxMargin]}>
+            <Text style={styles.autoTitle}>Phone Number</Text>
+            <Text style={styles.autoDesc}>
+              {user?.phoneNumber 
+                ? `${user?.phoneExtension || '+91'} ${user.phoneNumber}${user?.phoneVerified ? ' ✓' : ''}`
+                : 'Not added'
+              }
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={handleEditProfile}
+          >
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Devices Section */}
@@ -568,6 +666,82 @@ const SettingsScreen = () => {
                 )}
               />
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={isEditModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <TouchableOpacity
+                onPress={() => setIsEditModalVisible(false)}
+              >
+                <Text style={styles.modalClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.editForm}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="Enter your name"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <View style={styles.phoneInputContainer}>
+                  <View style={styles.phoneExtensionContainer}>
+                    <TextInput
+                      style={styles.phoneExtensionInput}
+                      value={editPhoneExtension}
+                      onChangeText={setEditPhoneExtension}
+                      placeholder="+91"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                  <TextInput
+                    style={styles.phoneNumberInput}
+                    value={editPhoneNumber}
+                    onChangeText={(text) => {
+                      // Only allow digits, max 10
+                      const digits = text.replace(/\D/g, '').slice(0, 10);
+                      setEditPhoneNumber(digits);
+                    }}
+                    placeholder="9876543210"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
+                <Text style={styles.inputHint}>
+                  {user?.phoneNumber 
+                    ? 'Enter new number to update (will require verification)'
+                    : 'Phone number will be verified via OTP'
+                  }
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleSaveProfile}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -976,6 +1150,88 @@ const styles = StyleSheet.create({
   modalConnectText: {
     color: '#e98f7c',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  editButton: {
+    backgroundColor: '#e98f7c',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  editButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  editForm: {
+    maxHeight: 400,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#94a0b2',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  phoneExtensionContainer: {
+    width: 80,
+  },
+  phoneExtensionInput: {
+    backgroundColor: '#94a0b2',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+    textAlign: 'center',
+  },
+  phoneNumberInput: {
+    flex: 1,
+    backgroundColor: '#94a0b2',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+  },
+  inputHint: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  saveButton: {
+    backgroundColor: '#e98f7c',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

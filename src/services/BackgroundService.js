@@ -138,9 +138,9 @@ class BackgroundService {
   }
 
   /**
-   * Show a debug notification with optional test API button
+   * Show a debug notification
    */
-  async showDebugNotification(title, body, data = {}, showTestButton = false) {
+  async showDebugNotification(title, body, data = {}) {
     try {
       // Delete and recreate channel to ensure fresh settings (helps with action buttons)
       if (Platform.OS === 'android') {
@@ -187,48 +187,8 @@ class BackgroundService {
         },
       };
 
-      // Add test API button if requested
-      if (showTestButton) {
-        notificationConfig.android.actions = [
-          {
-            title: '🧪 Test API',
-            pressAction: {
-              id: 'test_api',
-            },
-          },
-        ];
-        
-        // Add more text to body to make it expandable
-        notificationConfig.body = `${body}\n\nSwipe down to expand and see Test API button`;
-        notificationConfig.android.style.text = notificationConfig.body;
-        
-        console.log('📢 [BackgroundService] Adding Test API button to notification');
-        console.log('📢 [BackgroundService] Notification config:', JSON.stringify(notificationConfig, null, 2));
-      }
-
       const notificationId = await notifee.displayNotification(notificationConfig);
-      console.log(`📢 [BackgroundService] Debug notification displayed: ${title} - ${body}${showTestButton ? ' (with Test API button, ID: ' + notificationId + ')' : ''}`);
-      
-      // Verify the notification was created with actions
-      if (showTestButton) {
-        try {
-          const displayedNotifications = await notifee.getDisplayedNotifications();
-          const ourNotification = displayedNotifications.find(n => n.id === notificationId);
-          if (ourNotification) {
-            console.log('📢 [BackgroundService] Notification details:', JSON.stringify(ourNotification, null, 2));
-            if (ourNotification.android?.actions && ourNotification.android.actions.length > 0) {
-              console.log('✅ [BackgroundService] Actions found in notification:', ourNotification.android.actions);
-            } else {
-              console.warn('⚠️ [BackgroundService] No actions found in displayed notification');
-              console.warn('⚠️ [BackgroundService] Android config:', JSON.stringify(ourNotification.android, null, 2));
-            }
-          } else {
-            console.warn('⚠️ [BackgroundService] Notification not found in displayed notifications');
-          }
-        } catch (verifyError) {
-          console.warn('⚠️ [BackgroundService] Error verifying notification:', verifyError);
-        }
-      }
+      console.log(`📢 [BackgroundService] Debug notification displayed: ${title} - ${body}`);
       
       return notificationId;
     } catch (error) {
@@ -250,10 +210,6 @@ class BackgroundService {
       
       if (type === EventType.ACTION_PRESS) {
         console.log('🔔 [BackgroundService] Action pressed:', pressAction?.id);
-        if (pressAction?.id === 'test_api') {
-          console.log('🧪 [BackgroundService] Test API button pressed (foreground)');
-          await this.handleTestAPICall();
-        }
       } else if (type === EventType.PRESS) {
         console.log('🔔 [BackgroundService] Notification pressed (not action)');
       }
@@ -266,73 +222,10 @@ class BackgroundService {
       
       if (type === EventType.ACTION_PRESS) {
         console.log('🔔 [BackgroundService] Action pressed (background):', pressAction?.id);
-        if (pressAction?.id === 'test_api') {
-          console.log('🧪 [BackgroundService] Test API button pressed (background)');
-          await this.handleTestAPICall();
-        }
       }
     });
     
     console.log('✅ [BackgroundService] Notification event handlers setup complete');
-  }
-
-  /**
-   * Handle test API call
-   */
-  async handleTestAPICall() {
-    try {
-      console.log('🧪 [BackgroundService] Calling test API...');
-      
-      // Show notification that API call is in progress
-      await this.showDebugNotification(
-        '🧪 Testing API',
-        'Calling test endpoint...',
-        { type: 'test_api_in_progress' }
-      );
-
-      // Get location for test
-      const location = await this.getCurrentLocation();
-      
-      // Get device info - use BLE device ID
-      let deviceId = this.currentDeviceId || 'test-device';
-      let deviceInfo = 'test-device-info';
-      try {
-        // Use mobile device info for deviceInfo field
-        deviceInfo = await DeviceInfo.getDeviceName();
-      } catch (e) {
-        console.warn('⚠️ [BackgroundService] Failed to get device info:', e);
-      }
-      
-      if (!deviceId || deviceId === 'test-device') {
-        console.warn('⚠️ [BackgroundService] No BLE device ID available, using fallback');
-      }
-
-      // Call test API (using triggerEmergency as test endpoint)
-      const testData = {
-        latitude: location.latitude || 0,
-        longitude: location.longitude || 0,
-        deviceId,
-        deviceInfo,
-      };
-
-      console.log('🧪 [BackgroundService] Calling triggerEmergency API with test data:', testData);
-      const response = await ApiService.triggerEmergency(testData);
-      console.log('✅ [BackgroundService] Test API call successful:', response);
-
-      // Show success notification
-      await this.showDebugNotification(
-        '✅ Test API Success',
-        `Response: ${JSON.stringify(response?.message || 'Success')}`,
-        { type: 'test_api_success', response: JSON.stringify(response) }
-      );
-    } catch (error) {
-      console.error('🔴 [BackgroundService] Test API call failed:', error);
-      await this.showDebugNotification(
-        '❌ Test API Failed',
-        `Error: ${error.message || 'Unknown error'}`,
-        { type: 'test_api_failed', error: error.message }
-      );
-    }
   }
 
   /**
@@ -529,26 +422,14 @@ class BackgroundService {
         store.dispatch(setNotificationsActive(true));
       });
 
-      // Show notification with test button
+      // Show notification
       const notificationId = await this.showDebugNotification(
         '✅ Background Monitoring Active',
-        `Monitoring device: ${deviceId.substring(0, 8)}...\n\nIMPORTANT: Swipe down on this notification to expand it and see the "Test API" button below.`,
-        { type: 'monitoring_started' },
-        true // Show test API button
+        `Monitoring device: ${deviceId.substring(0, 8)}...`,
+        { type: 'monitoring_started' }
       );
       
       console.log('📢 [BackgroundService] Monitoring notification ID:', notificationId);
-      
-      // Show a second simple test notification after 3 seconds to verify actions work
-      setTimeout(async () => {
-        console.log('🧪 [BackgroundService] Showing test notification with button...');
-        await this.showDebugNotification(
-          '🧪 TEST: Action Button',
-          'This is a test notification. Please SWIPE DOWN to expand and look for the "Test API" button at the bottom.',
-          { type: 'test_action_button' },
-          true
-        );
-      }, 3000);
 
       console.log('✅ [BackgroundService] Background monitoring setup complete');
     } catch (error) {

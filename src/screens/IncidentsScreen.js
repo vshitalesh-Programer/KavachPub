@@ -14,7 +14,12 @@ import ApiService from '../services/ApiService';
 const IncidentsScreen = () => {
   const [incidents, setIncidents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalIncidents, setTotalIncidents] = useState(0);
   const mapRef = useRef(null);
+  const PAGE_SIZE = 5; // Use uppercase to indicate it's a constant
 
   const formatIncident = useCallback((item) => {
     // Handle latitude/longitude - API returns as strings
@@ -47,43 +52,82 @@ const IncidentsScreen = () => {
     };
   }, []);
 
-  const fetchIncidents = useCallback(async () => {
+  // Fetch total incidents from stats API
+  const fetchTotalIncidents = useCallback(async () => {
     try {
-      setIsLoading(true);
-      const history = await ApiService.getTriggerHistory();
+      const stats = await ApiService.getStats();
+      if (stats && stats.totalIncidents !== undefined) {
+        setTotalIncidents(stats.totalIncidents);
+      }
+    } catch (error) {
+      console.error('[IncidentsScreen] Error fetching stats:', error);
+    }
+  }, []);
+
+  const fetchIncidents = useCallback(async (cursor = null, append = false) => {
+    try {
+      if (append) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      const history = await ApiService.getTriggerHistory(cursor, PAGE_SIZE);
 
       // Handle API response structure: { triggers: [], pagination: {} }
       const historyList = Array.isArray(history)
         ? history
         : history?.triggers || history?.data || history?.history || [];
 
-      // Sort by triggeredAt (most recent first)
-      const sorted = Array.isArray(historyList)
-        ? [...historyList].sort((a, b) => {
-            const dateA = new Date(a.triggeredAt || a.createdAt || a.timestamp || a.date || 0);
-            const dateB = new Date(b.triggeredAt || b.createdAt || b.timestamp || b.date || 0);
-            return dateB - dateA;
-          })
-        : [];
+      // Extract pagination info
+      const pagination = history?.pagination || {};
+      const hasMoreData = pagination.hasMore || false;
+      const nextCursorValue = pagination.nextCursor || null;
 
       // Format and filter incidents with valid coordinates
-      const formatted = sorted
-        .map(formatIncident)
-        .filter((item) => item.lat && item.lng && !isNaN(item.lat) && !isNaN(item.lng));
-      
-      setIncidents(formatted);
-      console.log('[IncidentsScreen] Loaded', formatted.length, 'incidents');
+      const formatted = Array.isArray(historyList)
+        ? historyList
+            .map(formatIncident)
+            .filter((item) => item.lat && item.lng && !isNaN(item.lat) && !isNaN(item.lng))
+        : [];
+
+      if (append) {
+        // Append to existing incidents
+        setIncidents((prev) => [...prev, ...formatted]);
+      } else {
+        // Replace incidents
+        setIncidents(formatted);
+      }
+
+      // Update pagination state
+      setNextCursor(nextCursorValue);
+      setHasMore(hasMoreData);
+
+      console.log('[IncidentsScreen] Loaded', formatted.length, 'incidents', append ? '(appended)' : '(initial)');
+      console.log('[IncidentsScreen] Pagination:', { hasMore: hasMoreData, nextCursor: nextCursorValue });
     } catch (error) {
       console.error('[IncidentsScreen] Error fetching incidents:', error);
-      setIncidents([]);
+      if (!append) {
+        setIncidents([]);
+      }
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   }, [formatIncident]);
 
+  // Load more incidents (pagination)
+  const loadMore = useCallback(() => {
+    if (!isLoadingMore && hasMore && nextCursor) {
+      console.log('[IncidentsScreen] Loading more incidents with cursor:', nextCursor);
+      fetchIncidents(nextCursor, true);
+    }
+  }, [isLoadingMore, hasMore, nextCursor, fetchIncidents]);
+
   useEffect(() => {
+    fetchTotalIncidents();
     fetchIncidents();
-  }, [fetchIncidents]);
+  }, [fetchTotalIncidents, fetchIncidents]);
 
   // Focus map on latest incident when data changes
   useEffect(() => {
@@ -173,8 +217,22 @@ const IncidentsScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Incidents</Text>
-        <Text style={styles.subtitle}>History & Reports</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.title}>Incidents</Text>
+            <Text style={styles.subtitle}>History & Reports</Text>
+          </View>
+          {totalIncidents > 0 && (
+            <View style={styles.totalBadge}>
+              <Text style={styles.totalText}>{totalIncidents} total</Text>
+            </View>
+          )}
+        </View>
+        {incidents.length > 0 && (
+          <Text style={styles.countText}>
+            Showing {incidents.length} of {totalIncidents || incidents.length} incidents
+          </Text>
+        )}
       </View>
 
       {/* Map View */}
@@ -220,8 +278,26 @@ const IncidentsScreen = () => {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
           ListEmptyComponent={
-               <Text style={styles.emptyListText}>No incidents yet.</Text>
+            <Text style={styles.emptyListText}>No incidents yet.</Text>
+          }
+          ListFooterComponent={
+            isLoadingMore ? (
+              <View style={styles.loadingMoreContainer}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.loadingMoreText}>Loading more incidents...</Text>
+              </View>
+            ) : hasMore ? (
+              <View style={styles.loadMoreHint}>
+                <Text style={styles.loadMoreText}>Scroll down to load more</Text>
+              </View>
+            ) : incidents.length > 0 ? (
+              <View style={styles.endOfList}>
+                <Text style={styles.endOfListText}>No more incidents to load</Text>
+              </View>
+            ) : null
           }
         />
       )}
@@ -239,6 +315,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 20,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
@@ -248,6 +330,24 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#ffffff',
+  },
+  totalBadge: {
+    backgroundColor: '#0f172a2e',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#94a0b2',
+  },
+  totalText: {
+    color: '#B0B5BA',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  countText: {
+    fontSize: 12,
+    color: '#B0B5BA',
+    marginTop: 4,
   },
   map: {
     height: 200,
@@ -365,6 +465,34 @@ const styles = StyleSheet.create({
     color: '#777',
     textAlign: 'center',
     marginTop: 20,
+  },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingMoreText: {
+    color: '#B0B5BA',
+    fontSize: 14,
+  },
+  loadMoreHint: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  loadMoreText: {
+    color: '#94a0b2',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  endOfList: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  endOfListText: {
+    color: '#94a0b2',
+    fontSize: 12,
   },
 });
 
